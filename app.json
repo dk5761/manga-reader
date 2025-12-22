@@ -7,6 +7,12 @@
       "output": "static"
     },
     "name": "manga-reader",
-    "slug": "manga-reader"
+    "slug": "manga-reader",
+    "android": {
+      "package": "com.dk.rezolv.mangareader"
+    },
+    "ios": {
+      "bundleIdentifier": "com.dk.rezolv.mangareader"
+    }
   }
 }
