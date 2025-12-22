@@ -1,15 +1,5 @@
-import { useState, useCallback, useRef } from "react";
-import {
-  View,
-  Text,
-  Image,
-  Pressable,
-  Dimensions,
-  StatusBar,
-  ScrollView,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
-} from "react-native";
+import { useState, useCallback } from "react";
+import { View, Text, Pressable, StatusBar } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -19,10 +9,8 @@ import Animated, {
   withTiming,
   interpolate,
 } from "react-native-reanimated";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { WebtoonReader } from "../components";
 import { MOCK_CHAPTER_PAGES } from "../data/mockData";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export function ReaderScreen() {
   const insets = useSafeAreaInsets();
@@ -31,17 +19,13 @@ export function ReaderScreen() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const controlsVisible = useSharedValue(1);
+  const scrollY = useSharedValue(0);
 
   const toggleControls = useCallback(() => {
     controlsVisible.value = withTiming(controlsVisible.value === 1 ? 0 : 1, {
       duration: 200,
     });
   }, [controlsVisible]);
-
-  // Tap gesture to toggle controls
-  const tapGesture = Gesture.Tap().onEnd(() => {
-    toggleControls();
-  });
 
   const headerStyle = useAnimatedStyle(() => ({
     opacity: controlsVisible.value,
@@ -57,47 +41,18 @@ export function ReaderScreen() {
     ],
   }));
 
-  // Track scroll position for page indicator
-  const handleScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const { contentOffset, contentSize } = event.nativeEvent;
-      const totalHeight = contentSize.height;
-      const scrollY = contentOffset.y;
-      const pageHeight = totalHeight / chapter.pages.length;
-      const pageIndex = Math.min(
-        Math.floor(scrollY / pageHeight) + 1,
-        chapter.pages.length
-      );
-      if (pageIndex !== currentPage && pageIndex >= 1) {
-        setCurrentPage(pageIndex);
-      }
-    },
-    [currentPage, chapter.pages.length]
-  );
-
   return (
     <View className="flex-1 bg-black">
       <StatusBar hidden />
 
-      {/* Webtoon-style vertical scroll */}
-      <GestureDetector gesture={tapGesture}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-          contentContainerStyle={{ paddingBottom: insets.bottom }}
-        >
-          {chapter.pages.map((page) => (
-            <Image
-              key={page.id}
-              source={{ uri: page.url }}
-              style={{ width: SCREEN_WIDTH, height: SCREEN_WIDTH * 1.5 }}
-              resizeMode="cover"
-              className="bg-black"
-            />
-          ))}
-        </ScrollView>
-      </GestureDetector>
+      {/* WebtoonReader Component */}
+      <WebtoonReader
+        pages={chapter.pages}
+        onPageChange={setCurrentPage}
+        onTap={toggleControls}
+        scrollY={scrollY}
+        paddingBottom={insets.bottom}
+      />
 
       {/* Header Controls */}
       <Animated.View
