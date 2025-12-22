@@ -18,15 +18,16 @@ export function SearchBar({
     typeof mutedColor === "string" ? mutedColor : "#71717a";
 
   return (
-    <View className="flex-row items-center bg-zinc-900 rounded-full px-4 py-2 gap-2 mx-4">
+    <View className="flex-row items-center bg-zinc-900 rounded-full px-4 py-1 gap-2 mx-4 h-12">
       <Ionicons name="search" size={20} color={placeholderColor} />
       <TextInput
-        className="flex-1 text-foreground text-base asdh-full leading-none px"
+        className="flex-1 text-foreground text-base h-full"
         placeholder={placeholder}
         placeholderTextColor={placeholderColor}
         value={value}
         onChangeText={onChangeText}
-        style={{ paddingVertical: 0 }} // Remove default padding for better vertical alignment
+        textAlignVertical="center"
+        style={{ includeFontPadding: false }} // Android text alignment fix
       />
     </View>
   );
