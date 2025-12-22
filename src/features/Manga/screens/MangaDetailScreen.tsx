@@ -17,7 +17,7 @@ export function MangaDetailScreen() {
   const newChaptersCount = manga.chapters.filter((ch) => ch.isNew).length;
 
   const handleChapterPress = (chapterId: string) => {
-    console.log("Chapter pressed:", chapterId);
+    router.push(`/reader/${chapterId}`);
   };
 
   return (
