@@ -3,3 +3,4 @@ export { Header, useHeaderContext } from "./Header";
 export { MangaCard } from "./MangaCard";
 export { EmptyState } from "./EmptyState";
 export { LoadingSpinner } from "./LoadingSpinner";
+export { SearchBar } from "./SearchBar";

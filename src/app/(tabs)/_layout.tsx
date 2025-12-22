@@ -29,7 +29,10 @@ export default function TabLayout() {
           headerRight: () => <LibraryHeaderRight />,
         }}
       />
-      <Tabs.Screen name="browse" options={{ title: "Browse" }} />
+      <Tabs.Screen
+        name="browse"
+        options={{ title: "Browse", headerShown: true }}
+      />
       <Tabs.Screen name="updates" options={{ title: "History" }} />
       <Tabs.Screen name="settings" options={{ title: "More" }} />
     </Tabs>
