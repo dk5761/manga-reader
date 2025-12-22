@@ -41,10 +41,7 @@ export function FloatingTabBar({
   };
 
   return (
-    <View
-      className="absolute left-6 right-6"
-      style={{ bottom: insets.bottom + 16 }}
-    >
+    <View className="absolute left-6 right-6" style={{ bottom: insets.bottom }}>
       <View className="flex-row bg-tab-bg rounded-lg border border-tab-border h-[70px] items-center px-2">
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];

@@ -11,7 +11,9 @@ type MangaCardProps = {
   title: string;
   coverUrl: string;
   onPress?: () => void;
-  unreadCount?: number;
+  badge?: string; // e.g. "COMPLETED"
+  progress?: number; // 0 to 100
+  subtitle?: string; // e.g. "Ch. 164"
 };
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -21,7 +23,9 @@ function MangaCardComponent({
   title,
   coverUrl,
   onPress,
-  unreadCount,
+  badge,
+  progress,
+  subtitle,
 }: MangaCardProps) {
   const scale = useSharedValue(1);
 
@@ -30,7 +34,7 @@ function MangaCardComponent({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.95, { damping: 15, stiffness: 300 });
+    scale.value = withSpring(0.96, { damping: 15, stiffness: 300 });
   };
 
   const handlePressOut = () => {
@@ -42,41 +46,65 @@ function MangaCardComponent({
       onPress={onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      className="w-full rounded-lg overflow-hidden"
-      style={[{ aspectRatio: 0.7 }, animatedStyle]}
+      className="w-full flex-col gap-2"
+      style={[animatedStyle]}
     >
-      <Image
-        source={{ uri: coverUrl }}
-        className="w-full h-full bg-zinc-800"
-        resizeMode="cover"
-      />
+      {/* Cover Image Container */}
+      <View className="relative w-full aspect-[2/3] rounded-xl overflow-hidden bg-zinc-800">
+        <Image
+          source={{ uri: coverUrl }}
+          className="w-full h-full"
+          resizeMode="cover"
+        />
 
-      {/* Gradient overlay - simulated with stacked views */}
-      <View className="absolute bottom-0 left-0 right-0 h-3/5">
-        <View className="flex-1 bg-black/10" />
-        <View className="flex-1 bg-black/30" />
-        <View className="flex-1 bg-black/50" />
-        <View className="flex-1 bg-black/70" />
+        {/* Badge - Top Left */}
+        {badge && (
+          <View className="absolute top-2 left-2 px-2 py-1 bg-green-500 rounded-md">
+            <Text className="text-[10px] font-bold text-white uppercase tracking-wider">
+              {badge}
+            </Text>
+          </View>
+        )}
+
+        {/* Unread Badge - Top Right (Optional logic kept if needed, but using Badge prop mostly) */}
       </View>
 
-      {/* Title */}
-      <View className="absolute bottom-0 left-0 right-0 p-2">
+      {/* Info Section */}
+      <View className="flex-col gap-1">
         <Text
-          className="text-white text-[13px] font-semibold leading-4"
-          numberOfLines={2}
+          className="text-white text-sm font-bold leading-tight"
+          numberOfLines={1}
         >
           {title}
         </Text>
-      </View>
 
-      {/* Unread badge */}
-      {unreadCount && unreadCount > 0 && (
-        <View className="absolute top-1.5 right-1.5 bg-indigo-500 rounded px-1.5 py-0.5">
-          <Text className="text-white text-[11px] font-bold">
-            {unreadCount}
-          </Text>
-        </View>
-      )}
+        {/* Progress Bar */}
+        {progress !== undefined && (
+          <View className="w-full h-1 bg-zinc-700 rounded-full overflow-hidden">
+            <View
+              className="h-full bg-primary"
+              style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+            />
+          </View>
+        )}
+
+        {/* Metadata Row */}
+        {(subtitle || progress !== undefined) && (
+          <View className="flex-row items-center justify-between">
+            <Text
+              className="text-zinc-500 text-[10px] font-medium"
+              numberOfLines={1}
+            >
+              {subtitle}
+            </Text>
+            {progress !== undefined && (
+              <Text className="text-zinc-500 text-[10px] font-medium">
+                {progress}%
+              </Text>
+            )}
+          </View>
+        )}
+      </View>
     </AnimatedPressable>
   );
 }

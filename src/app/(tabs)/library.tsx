@@ -1,10 +1,5 @@
-import { View, Text } from "react-native";
+import { LibraryScreen } from "@/features/Library";
 
-export default function LibraryScreen() {
-  return (
-    <View className="flex-1 bg-background items-center justify-center">
-      <Text className="text-foreground text-2xl font-bold">Library</Text>
-      <Text className="text-muted mt-2">Your manga collection</Text>
-    </View>
-  );
+export default function LibraryRoute() {
+  return <LibraryScreen />;
 }
