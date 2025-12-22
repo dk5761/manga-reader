@@ -1,12 +1,11 @@
 import { View, Pressable, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useCSSVariable } from "uniwind";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 
 type TabBarConfig = {
   icons?: Record<string, keyof typeof Ionicons.glyphMap>;
-  activeColor?: string;
-  inactiveColor?: string;
 };
 
 const defaultIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -16,11 +15,9 @@ const defaultIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   settings: "ellipsis-horizontal",
 };
 
-const defaultConfig: Required<TabBarConfig> = {
-  icons: defaultIcons,
-  activeColor: "#22d3ee",
-  inactiveColor: "#94a3b8",
-};
+// Fallback colors
+const FALLBACK_ACTIVE = "#22d3ee";
+const FALLBACK_INACTIVE = "#94a3b8";
 
 export function FloatingTabBar({
   state,
@@ -29,18 +26,31 @@ export function FloatingTabBar({
   config = {},
 }: BottomTabBarProps & { config?: TabBarConfig }) {
   const insets = useSafeAreaInsets();
-  const mergedConfig = { ...defaultConfig, ...config };
+  const icons = { ...defaultIcons, ...config.icons };
+
+  // Get theme-aware colors with fallbacks
+  const [activeColor, inactiveColor] = useCSSVariable([
+    "--color-tab-active",
+    "--color-tab-inactive",
+  ]);
+
+  const getColor = (isFocused: boolean): string => {
+    const color = isFocused ? activeColor : inactiveColor;
+    if (typeof color === "string") return color;
+    return isFocused ? FALLBACK_ACTIVE : FALLBACK_INACTIVE;
+  };
 
   return (
     <View
       className="absolute left-6 right-6"
       style={{ bottom: insets.bottom + 16 }}
     >
-      <View className="flex-row bg-slate-800 rounded-[8px] border border-slate-700 h-[70px] items-center px-2">
+      <View className="flex-row bg-tab-bg rounded-lg border border-tab-border h-[70px] items-center px-2">
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
           const label = options.title ?? route.name;
           const isFocused = state.index === index;
+          const color = getColor(isFocused);
 
           const onPress = () => {
             const event = navigation.emit({
@@ -54,10 +64,6 @@ export function FloatingTabBar({
             }
           };
 
-          const color = isFocused
-            ? mergedConfig.activeColor
-            : mergedConfig.inactiveColor;
-
           return (
             <Pressable
               key={route.key}
@@ -65,7 +71,7 @@ export function FloatingTabBar({
               className="flex-1 items-center justify-center py-2"
             >
               <Ionicons
-                name={mergedConfig.icons[route.name] ?? "help-circle"}
+                name={icons[route.name] ?? "help-circle"}
                 size={22}
                 color={color}
               />

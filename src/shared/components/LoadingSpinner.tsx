@@ -1,23 +1,26 @@
 import { View, ActivityIndicator } from "react-native";
+import { useCSSVariable } from "uniwind";
 
 type LoadingSpinnerProps = {
   size?: "small" | "large";
-  color?: string;
   fullScreen?: boolean;
 };
 
 export function LoadingSpinner({
   size = "large",
-  color = "#6366f1",
   fullScreen = false,
 }: LoadingSpinnerProps) {
+  const primaryColorRaw = useCSSVariable("--color-primary");
+  const primaryColor =
+    typeof primaryColorRaw === "string" ? primaryColorRaw : "#6366f1";
+
   if (fullScreen) {
     return (
-      <View className="flex-1 items-center justify-center bg-black">
-        <ActivityIndicator size={size} color={color} />
+      <View className="flex-1 items-center justify-center bg-background">
+        <ActivityIndicator size={size} color={primaryColor} />
       </View>
     );
   }
 
-  return <ActivityIndicator size={size} color={color} />;
+  return <ActivityIndicator size={size} color={primaryColor} />;
 }

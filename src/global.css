@@ -1,2 +1,92 @@
 @import "tailwindcss";
 @import "uniwind";
+
+/* ========================================
+   MANGA READER DESIGN SYSTEM
+   ======================================== */
+
+@theme {
+  /* Primary Colors - Cyan/Teal for accents */
+  --color-primary: #22d3ee;
+  --color-primary-dark: #0891b2;
+  --color-primary-light: #67e8f9;
+
+  /* Secondary Colors - Indigo for actions */
+  --color-secondary: #6366f1;
+  --color-secondary-dark: #4f46e5;
+  --color-secondary-light: #818cf8;
+
+  /* Accent Colors */
+  --color-accent: #f472b6;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+
+  /* Typography Scale */
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-full: 9999px;
+}
+
+/* Theme Variables (Dark/Light) */
+@layer theme {
+  :root {
+    @variant dark {
+      /* Backgrounds */
+      --color-background: #000000;
+      --color-background-secondary: #0a0a0a;
+      --color-surface: #18181b;
+      --color-card: #1e293b;
+
+      /* Text */
+      --color-foreground: #ffffff;
+      --color-foreground-secondary: #a1a1aa;
+      --color-muted: #71717a;
+
+      /* Borders */
+      --color-border: #27272a;
+      --color-border-subtle: #3f3f46;
+
+      /* Tab bar specific */
+      --color-tab-bg: #1e293b;
+      --color-tab-border: #334155;
+      --color-tab-active: #22d3ee;
+      --color-tab-inactive: #94a3b8;
+    }
+
+    @variant light {
+      /* Backgrounds */
+      --color-background: #ffffff;
+      --color-background-secondary: #f4f4f5;
+      --color-surface: #fafafa;
+      --color-card: #ffffff;
+
+      /* Text */
+      --color-foreground: #09090b;
+      --color-foreground-secondary: #52525b;
+      --color-muted: #a1a1aa;
+
+      /* Borders */
+      --color-border: #e4e4e7;
+      --color-border-subtle: #f4f4f5;
+
+      /* Tab bar specific */
+      --color-tab-bg: #f4f4f5;
+      --color-tab-border: #e4e4e7;
+      --color-tab-active: #0891b2;
+      --color-tab-inactive: #71717a;
+    }
+  }
+}
