@@ -1,23 +1,83 @@
-import { View, Text, Image, Pressable, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useCSSVariable } from "uniwind";
+import { WebViewImage } from "@/shared/components";
 import { ChapterCard, GenreChip } from "../components";
-import { MOCK_MANGA_DETAIL } from "../data/mockData";
+import { useMangaDetails, useChapterList } from "../api/manga.queries";
+import { getSource } from "@/sources";
 
 export function MangaDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const manga = MOCK_MANGA_DETAIL;
+  const { id, sourceId, url } = useLocalSearchParams<{
+    id: string;
+    sourceId: string;
+    url: string;
+  }>();
+
+  const source = getSource(sourceId || "");
+  const {
+    data: manga,
+    isLoading: isMangaLoading,
+    error: mangaError,
+  } = useMangaDetails(sourceId || "", url || "");
+  const {
+    data: chapters,
+    isLoading: isChaptersLoading,
+    error: chaptersError,
+  } = useChapterList(sourceId || "", url || "");
 
   const fgColor = useCSSVariable("--color-foreground");
   const foreground = typeof fgColor === "string" ? fgColor : "#fff";
 
-  const newChaptersCount = manga.chapters.filter((ch) => ch.isNew).length;
+  // Loading state
+  if (isMangaLoading || isChaptersLoading) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color={foreground} />
+        <Text className="text-muted mt-4">Loading details...</Text>
+      </View>
+    );
+  }
 
-  const handleChapterPress = (chapterId: string) => {
-    router.push(`/reader/${chapterId}`);
+  // Error state
+  if (mangaError || !manga) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center p-6">
+        <Text className="text-destructive text-lg font-bold">
+          Error loading manga
+        </Text>
+        <Text className="text-muted text-center mt-2">
+          {(mangaError as Error)?.message || "Unknown error"}
+        </Text>
+        <Pressable
+          onPress={() => router.back()}
+          className="mt-6 bg-surface px-6 py-3 rounded-lg border border-border"
+        >
+          <Text className="text-foreground">Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const handleChapterPress = (chapterId: string, chapterUrl: string) => {
+    // Navigate to reader with chapter info
+    router.push({
+      pathname: "/reader/[chapterId]",
+      params: {
+        chapterId, // This is just the ID (number usually)
+        sourceId,
+        url: chapterUrl, // The full URL to fetch pages
+      },
+    });
   };
 
   return (
@@ -43,11 +103,13 @@ export function MangaDetailScreen() {
         <View className="items-start px-4 mb-6">
           <View className="flex-row w-full gap-5">
             {/* Cover Image - Left Side */}
-            <Image
-              source={{ uri: manga.cover }}
-              className="w-[120px] aspect-[2/3] rounded-lg bg-surface shadow-md"
-              resizeMode="cover"
-            />
+            <View className="w-[120px] aspect-[2/3] rounded-lg bg-surface shadow-md overflow-hidden">
+              <WebViewImage
+                uri={manga.cover}
+                baseUrl={source?.baseUrl}
+                className="w-full h-full"
+              />
+            </View>
 
             {/* Right Side Info */}
             <View className="flex-1 pt-1">
@@ -60,7 +122,7 @@ export function MangaDetailScreen() {
 
               {/* Genre Chips - Stacked */}
               <View className="flex-row flex-wrap gap-2 mt-3">
-                {manga.genres.map((genre) => (
+                {manga.genres?.map((genre) => (
                   <GenreChip key={genre} genre={genre} />
                 ))}
               </View>
@@ -86,17 +148,17 @@ export function MangaDetailScreen() {
         {/* Chapter List Header */}
         <View className="bg-surface/50 px-4 py-3 border-t border-b border-border/50">
           <Text className="text-foreground font-bold text-sm">
-            {newChaptersCount} New Chapter
+            {chapters?.length || 0} Chapters
           </Text>
         </View>
 
         {/* Chapters */}
         <View className="pb-4">
-          {manga.chapters.map((chapter) => (
+          {chapters?.map((chapter) => (
             <ChapterCard
               key={chapter.id}
               chapter={chapter}
-              onPress={() => handleChapterPress(chapter.id)}
+              onPress={() => handleChapterPress(chapter.id, chapter.url)}
               onOptions={() => console.log("Options:", chapter.id)}
             />
           ))}

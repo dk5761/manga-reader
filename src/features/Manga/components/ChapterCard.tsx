@@ -1,7 +1,7 @@
 import { View, Text, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useCSSVariable } from "uniwind";
-import type { Chapter } from "../data/mockData";
+import type { Chapter } from "@/sources";
 
 type ChapterCardProps = {
   chapter: Chapter;
@@ -16,15 +16,15 @@ export function ChapterCard({ chapter, onPress, onOptions }: ChapterCardProps) {
   return (
     <Pressable
       onPress={onPress}
-      className={`flex-row items-center justify-between px-4 py-3 ${
-        chapter.isNew ? "bg-surface" : ""
-      }`}
+      className="flex-row items-center justify-between px-4 py-3 active:bg-surface/50"
     >
       <View className="flex-1">
         <Text className="text-foreground text-sm font-medium">
           Chapter {chapter.number}
         </Text>
-        <Text className="text-muted text-xs mt-0.5">{chapter.date}</Text>
+        <Text className="text-muted text-xs mt-0.5">
+          {chapter.date || "Unknown date"}
+        </Text>
       </View>
 
       <Pressable onPress={onOptions} hitSlop={8} className="p-2">
