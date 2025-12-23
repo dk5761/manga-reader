@@ -1,5 +1,5 @@
-import { memo, useState, useCallback, useEffect } from "react";
-import { Dimensions, View } from "react-native";
+import { memo, useState, useCallback } from "react";
+import { Dimensions, View, ActivityIndicator, StyleSheet } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -33,6 +33,7 @@ function WebViewZoomableImageComponent({
 }: WebViewZoomableImageProps) {
   // Start with minimum height, will be updated when image loads
   const [height, setHeight] = useState(minHeight);
+  const [isLoading, setIsLoading] = useState(true);
 
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
@@ -46,6 +47,7 @@ function WebViewZoomableImageComponent({
   const handleImageHeightChange = useCallback(
     (newHeight: number) => {
       setHeight(newHeight);
+      setIsLoading(false);
       onHeightChange?.(newHeight);
     },
     [onHeightChange]
@@ -140,6 +142,13 @@ function WebViewZoomableImageComponent({
   return (
     <GestureDetector gesture={composedGesture}>
       <Animated.View style={[{ width, minHeight: height }, animatedStyle]}>
+        {/* Loading indicator */}
+        {isLoading && (
+          <View style={[styles.loadingContainer, { width, height: minHeight }]}>
+            <ActivityIndicator size="large" color="#00d9ff" />
+          </View>
+        )}
+
         <WebViewImage
           uri={uri}
           baseUrl={baseUrl}
@@ -152,5 +161,17 @@ function WebViewZoomableImageComponent({
     </GestureDetector>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#111",
+    zIndex: 10,
+  },
+});
 
 export const WebViewZoomableImage = memo(WebViewZoomableImageComponent);
