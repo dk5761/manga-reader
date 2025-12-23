@@ -8,6 +8,7 @@ import type {
   SourceConfig,
 } from "../base/types";
 import { HttpClient } from "@/core/http";
+import { WebViewFetcherService } from "@/core/http/WebViewFetcherService";
 
 /**
  * KissManga.in Source Implementation
@@ -238,47 +239,72 @@ export class KissMangaSource extends Source {
       const ajaxUrl = `${mangaUrlClean}/ajax/chapters/`;
 
       try {
-        const response = await HttpClient.fetch(ajaxUrl, {
-          method: "POST",
-          headers: {
+        // Use WebView for POST to maintain CF bypass fingerprint
+        chapterHtml = await WebViewFetcherService.postHtml(
+          ajaxUrl,
+          "", // empty body
+          {
             "X-Requested-With": "XMLHttpRequest",
             Referer: this.baseUrl + "/",
             "Content-Type": "application/x-www-form-urlencoded",
-          },
-        });
-
-        if (response.ok) {
-          chapterHtml = await response.text();
-        }
+          }
+        );
+        console.log(
+          "[KissManga] Chapters fetched via WebView POST, length:",
+          chapterHtml.length
+        );
+        console.log(
+          "[KissManga] POST Response Preview:",
+          chapterHtml.substring(0, 500)
+        );
       } catch (e) {
         console.warn("[KissManga] Failed to fetch chapters via AJAX:", e);
       }
     }
 
-    const chapterDoc = this.parseHtml(chapterHtml);
+    // Parse chapters - use regex for AJAX response fragments
+    const chapters: Chapter[] = [];
 
-    const chapters = chapterDoc.selectAll(this.selectors.chapterList, (el) => {
-      const linkEl = el.querySelector(this.selectors.chapterLink);
-      const dateEl = el.querySelector(this.selectors.chapterDate);
+    // Match each <li class="wp-manga-chapter"> block
+    const chapterRegex =
+      /<li[^>]*class="[^"]*wp-manga-chapter[^"]*"[^>]*>([\s\S]*?)<\/li>/gi;
+    let match;
 
-      const chapterUrl = linkEl?.getAttribute("href") || "";
-      const chapterTitle = linkEl?.textContent?.trim() || "";
-      const dateText = dateEl?.textContent?.trim() || "";
+    while ((match = chapterRegex.exec(chapterHtml)) !== null) {
+      const liContent = match[1];
+
+      // Extract href and title from <a> tag
+      const linkMatch = /<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i.exec(
+        liContent
+      );
+      if (!linkMatch) continue;
+
+      const chapterUrl = linkMatch[1].trim();
+      const chapterTitle = linkMatch[2].replace(/<[^>]+>/g, "").trim();
+
+      // Extract date from <span class="chapter-release-date">
+      const dateMatch =
+        /<span[^>]*class="[^"]*chapter-release-date[^"]*"[^>]*>[\s\S]*?<i>([^<]+)<\/i>/i.exec(
+          liContent
+        );
+      const dateText = dateMatch ? dateMatch[1].trim() : "";
+
+      if (!chapterUrl) continue;
 
       // Append ?style=list for vertical reading
       const finalUrl = chapterUrl.includes("?")
         ? chapterUrl
         : `${chapterUrl}?style=list`;
 
-      return {
+      chapters.push({
         id: this.getChapterIdFromUrl(chapterUrl),
         mangaId: this.getMangaIdFromUrl(mangaUrl),
         number: this.parseChapterNumber(chapterTitle),
         title: chapterTitle,
         url: this.absoluteUrl(finalUrl),
         date: dateText,
-      };
-    });
+      });
+    }
 
     return chapters.filter((ch) => ch.url);
   }

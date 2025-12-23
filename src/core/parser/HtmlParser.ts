@@ -28,8 +28,11 @@ export class HtmlParser {
       .replace(/([^"'>]);(?=\s*>)/g, "$1");
 
     try {
+      // Check if html has body tag
+      const hasBody = /<body[^>]*>/i.test(sanitized);
+
       this.doc = IDomParser.parse(sanitized, {
-        onlyBody: true,
+        onlyBody: hasBody,
         errorHandler: silentErrorHandler,
       });
     } catch (e) {

@@ -1,5 +1,12 @@
 import { useState, useEffect, memo } from "react";
-import { View, Image as RNImage, ActivityIndicator } from "react-native";
+import {
+  View,
+  Image as RNImage,
+  ActivityIndicator,
+  Platform,
+} from "react-native";
+import axios from "axios";
+import { Buffer } from "buffer";
 
 type ProxiedImageProps = {
   uri: string;
@@ -37,8 +44,8 @@ function ProxiedImageComponent({
         setLoading(true);
         setError(false);
 
-        const response = await fetch(uri, {
-          method: "GET",
+        const response = await axios.get(uri, {
+          responseType: "arraybuffer",
           headers: {
             "User-Agent":
               "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
@@ -48,30 +55,17 @@ function ProxiedImageComponent({
           },
         });
 
-        if (!response.ok) {
+        if (response.status < 200 || response.status >= 300) {
           throw new Error(`HTTP ${response.status}`);
         }
 
-        const blob = await response.blob();
-
-        // Convert blob to base64
-        const reader = new FileReader();
-        const base64Promise = new Promise<string>((resolve, reject) => {
-          reader.onloadend = () => {
-            if (typeof reader.result === "string") {
-              resolve(reader.result);
-            } else {
-              reject(new Error("Failed to read blob"));
-            }
-          };
-          reader.onerror = reject;
-        });
-        reader.readAsDataURL(blob);
-
-        const base64 = await base64Promise;
+        // Convert arraybuffer to base64
+        const base64 = Buffer.from(response.data, "binary").toString("base64");
+        const contentType = response.headers["content-type"] || "image/jpeg";
+        const dataUri = `data:${contentType};base64,${base64}`;
 
         if (!cancelled) {
-          setImageData(base64);
+          setImageData(dataUri);
           setLoading(false);
         }
       } catch (e) {
