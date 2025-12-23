@@ -9,10 +9,10 @@
     "name": "manga-reader",
     "slug": "manga-reader",
     "android": {
-      "package": "com.dk.rezolv.mangareader"
+      "package": "com.drshnk.mangareader"
     },
     "ios": {
-      "bundleIdentifier": "com.dk.rezolv.mangareader"
+      "bundleIdentifier": "com.drshnk.mangareader"
     }
   }
 }

@@ -1,4 +1,5 @@
 import { HttpClient } from "@/core/http";
+import { WebViewFetcherService } from "@/core/http/WebViewFetcherService";
 import { parseHtml, HtmlParser } from "@/core/parser";
 import type {
   Manga,
@@ -65,10 +66,22 @@ export abstract class Source {
   // ─────────────────────────────────────────────────────────────
 
   /**
-   * Fetch HTML from URL with proper headers
+   * Fetch HTML from URL with proper headers.
+   * Uses WebView for Cloudflare-protected sources, HttpClient otherwise.
    */
   protected async fetchHtml(url: string): Promise<string> {
     const fullUrl = url.startsWith("http") ? url : `${this.baseUrl}${url}`;
+
+    // For Cloudflare-protected sources, use WebView fetching
+    if (this.needsCloudflareBypass) {
+      console.log(
+        `[${this.name}] Fetching via WebView:`,
+        fullUrl.substring(0, 60)
+      );
+      return WebViewFetcherService.fetchHtml(fullUrl);
+    }
+
+    // For regular sources, use HttpClient
     return HttpClient.getText(fullUrl, {
       headers: {
         Referer: this.baseUrl,

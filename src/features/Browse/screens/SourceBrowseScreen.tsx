@@ -47,9 +47,10 @@ export function SourceBrowseScreen() {
   // Trigger warmup on mount
   useEffect(() => {
     if (source?.baseUrl) {
-      warmupSession(source.baseUrl);
+      // Pass needsCloudflareBypass to require cf_clearance cookie
+      warmupSession(source.baseUrl, source.needsCloudflareBypass);
     }
-  }, [source?.baseUrl, warmupSession]);
+  }, [source?.baseUrl, source?.needsCloudflareBypass, warmupSession]);
 
   // Handle debounced search
   useEffect(() => {
@@ -62,12 +63,13 @@ export function SourceBrowseScreen() {
     }
   }, [debouncedSearchQuery]);
 
-  // Queries
-  const popularQuery = usePopularManga(sourceId || "");
-  const latestQuery = useLatestManga(sourceId || "");
+  // Queries - wait for session to be ready before fetching
+  const popularQuery = usePopularManga(sourceId || "", sessionReady);
+  const latestQuery = useLatestManga(sourceId || "", sessionReady);
   const searchQueryResult = useSearchManga(
     sourceId || "",
-    isSearching ? debouncedSearchQuery : ""
+    isSearching ? debouncedSearchQuery : "",
+    sessionReady
   );
 
   const handleSearch = useCallback(() => {

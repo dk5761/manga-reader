@@ -5,7 +5,11 @@ import type { Manga, SearchResult } from "@/sources";
 /**
  * Search manga by query
  */
-export function useSearchManga(sourceId: string, query: string) {
+export function useSearchManga(
+  sourceId: string,
+  query: string,
+  sessionReady = true
+) {
   const source = getSource(sourceId);
 
   return useInfiniteQuery({
@@ -17,7 +21,7 @@ export function useSearchManga(sourceId: string, query: string) {
     },
     getNextPageParam: (lastPage, allPages) =>
       lastPage.hasNextPage ? allPages.length + 1 : undefined,
-    enabled: !!query.trim() && !!source,
+    enabled: !!query.trim() && !!source && sessionReady,
     initialPageParam: 1,
   });
 }
@@ -25,7 +29,7 @@ export function useSearchManga(sourceId: string, query: string) {
 /**
  * Get popular manga
  */
-export function usePopularManga(sourceId: string) {
+export function usePopularManga(sourceId: string, sessionReady = true) {
   const source = getSource(sourceId);
 
   return useInfiniteQuery({
@@ -36,7 +40,7 @@ export function usePopularManga(sourceId: string) {
     },
     getNextPageParam: (lastPage, allPages) =>
       lastPage.hasNextPage ? allPages.length + 1 : undefined,
-    enabled: !!source,
+    enabled: !!source && sessionReady,
     initialPageParam: 1,
   });
 }
@@ -44,7 +48,7 @@ export function usePopularManga(sourceId: string) {
 /**
  * Get latest updated manga
  */
-export function useLatestManga(sourceId: string) {
+export function useLatestManga(sourceId: string, sessionReady = true) {
   const source = getSource(sourceId);
 
   return useInfiniteQuery({
@@ -55,7 +59,7 @@ export function useLatestManga(sourceId: string) {
     },
     getNextPageParam: (lastPage, allPages) =>
       lastPage.hasNextPage ? allPages.length + 1 : undefined,
-    enabled: !!source,
+    enabled: !!source && sessionReady,
     initialPageParam: 1,
   });
 }

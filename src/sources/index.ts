@@ -1,12 +1,15 @@
 import { MangaKakalotSource } from "./mangakakalot";
+import { KissMangaSource } from "./kissmanga";
 import type { Source } from "./base";
 
 // Source instances
 const mangakakalot = new MangaKakalotSource();
+const kissmanga = new KissMangaSource();
 
 // Source registry - add new sources here
 export const SOURCES: Record<string, Source> = {
   mangakakalot,
+  kissmanga,
 } as const;
 
 // Helper to get source by ID

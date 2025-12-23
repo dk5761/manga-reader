@@ -1,4 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios, {
+  AxiosInstance,
+  AxiosResponse,
+  InternalAxiosRequestConfig,
+} from "axios";
 
 const COOKIE_STORAGE_KEY = "http_cookies";
 const USER_AGENT =
@@ -17,6 +22,86 @@ interface CookieJar {
 class HttpClientClass {
   private cookieJar: CookieJar = {};
   private initialized = false;
+  private client: AxiosInstance;
+
+  constructor() {
+    this.client = axios.create({
+      timeout: 15000,
+      headers: {
+        "User-Agent": USER_AGENT,
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      // Return full response for non-2xx status codes
+      validateStatus: () => true,
+    });
+
+    // Request interceptor - add cookies & logging
+    this.client.interceptors.request.use(
+      (config: InternalAxiosRequestConfig) => {
+        const url = config.url || "";
+        const cookies = this.getCookiesForUrl(url);
+        if (cookies && config.headers) {
+          config.headers.Cookie = cookies;
+          // Debug: show if cf_clearance is present
+          const hasCf = cookies.includes("cf_clearance");
+          console.log(
+            "[HTTP] →",
+            config.method?.toUpperCase(),
+            url,
+            hasCf ? "✓ cf_clearance" : "⚠️ NO cf_clearance"
+          );
+        } else {
+          console.log(
+            "[HTTP] →",
+            config.method?.toUpperCase(),
+            url,
+            "⚠️ NO COOKIES"
+          );
+        }
+        return config;
+      },
+      (error) => {
+        console.log("[HTTP] Request error:", error.message);
+        return Promise.reject(error);
+      }
+    );
+
+    // Response interceptor - logging & CF detection
+    this.client.interceptors.response.use(
+      (response: AxiosResponse) => {
+        const status = response.status;
+        const url = response.config.url || "";
+        const size =
+          typeof response.data === "string" ? response.data.length : 0;
+        console.log("[HTTP] ←", status, url, `(${size} bytes)`);
+
+        // Parse Set-Cookie headers
+        const setCookie = response.headers["set-cookie"];
+        if (setCookie && response.config.url) {
+          const domain = this.getDomain(response.config.url);
+          setCookie.forEach((cookie: string) => {
+            const parts = cookie.split(";")[0].split("=");
+            if (parts.length >= 2) {
+              this.setCookies(domain, { [parts[0]]: parts.slice(1).join("=") });
+            }
+          });
+        }
+
+        return response;
+      },
+      (error) => {
+        console.log(
+          "[HTTP] ✗",
+          error.response?.status || "NETWORK",
+          error.config?.url,
+          error.message
+        );
+        return Promise.reject(error);
+      }
+    );
+  }
 
   async init(): Promise<void> {
     if (this.initialized) return;
@@ -96,13 +181,13 @@ class HttpClientClass {
   /**
    * Check if a response indicates a Cloudflare challenge.
    */
-  isCfChallenge(response: Response): boolean {
+  isCfChallenge(response: AxiosResponse): boolean {
     // Cloudflare challenge typically returns 403 or 503
     if (response.status !== 403 && response.status !== 503) return false;
 
     // Check for Cloudflare headers
-    const server = response.headers.get("server");
-    const cfRay = response.headers.get("cf-ray");
+    const server = response.headers["server"];
+    const cfRay = response.headers["cf-ray"];
 
     return !!(server?.includes("cloudflare") || cfRay);
   }
@@ -116,54 +201,60 @@ class HttpClientClass {
     this.saveCookies();
   }
 
+  /**
+   * Make a fetch-like request using axios (backward compatible)
+   */
   async fetch(url: string, options: RequestInit = {}): Promise<Response> {
     await this.init();
 
-    const headers = new Headers(options.headers);
-
-    // Set default headers
-    if (!headers.has("User-Agent")) {
-      headers.set("User-Agent", USER_AGENT);
-    }
-
-    // Add cookies
-    const cookies = this.getCookiesForUrl(url);
-    if (cookies) {
-      headers.set("Cookie", cookies);
-    }
-
-    const response = await fetch(url, {
-      ...options,
-      headers,
+    const response = await this.client.request({
+      url,
+      method: (options.method as any) || "GET",
+      headers: options.headers as Record<string, string>,
+      data: options.body,
+      responseType: "text",
     });
 
-    // Parse Set-Cookie headers (simplified)
-    const setCookie = response.headers.get("Set-Cookie");
-    if (setCookie) {
-      const domain = this.getDomain(url);
-      const cookieParts = setCookie.split(";")[0].split("=");
-      if (cookieParts.length >= 2) {
-        this.setCookies(domain, { [cookieParts[0]]: cookieParts[1] });
-      }
-    }
-
-    return response;
+    // Create a fetch-like Response object for backward compatibility
+    return {
+      ok: response.status >= 200 && response.status < 300,
+      status: response.status,
+      statusText: response.statusText,
+      headers: {
+        get: (name: string) => response.headers[name.toLowerCase()] || null,
+      },
+      text: async () => response.data,
+      json: async () => JSON.parse(response.data),
+    } as Response;
   }
 
   async getText(url: string, options?: RequestInit): Promise<string> {
-    const response = await this.fetch(url, options);
-    if (!response.ok) {
+    await this.init();
+
+    const response = await this.client.get(url, {
+      headers: options?.headers as Record<string, string>,
+      responseType: "text",
+    });
+
+    if (response.status < 200 || response.status >= 300) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    return response.text();
+
+    return response.data;
   }
 
   async getJson<T>(url: string, options?: RequestInit): Promise<T> {
-    const response = await this.fetch(url, options);
-    if (!response.ok) {
+    await this.init();
+
+    const response = await this.client.get(url, {
+      headers: options?.headers as Record<string, string>,
+    });
+
+    if (response.status < 200 || response.status >= 300) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    return response.json();
+
+    return response.data;
   }
 
   getUserAgent(): string {

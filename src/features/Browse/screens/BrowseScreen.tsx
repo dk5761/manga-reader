@@ -1,7 +1,8 @@
 import { useMemo } from "react";
-import { View, Text, ScrollView } from "react-native";
+import { View, Text, ScrollView, Pressable, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import axios from "axios";
 import { SearchBar } from "@/shared/components/SearchBar";
 import { SourceCard, type SourceCardData } from "../components/SourceCard";
 import { useBrowseStore } from "../stores/useBrowseStore";
@@ -32,6 +33,20 @@ export function BrowseScreen() {
     router.push(`/source/${id}`);
   };
 
+  const testAxios = async () => {
+    try {
+      console.log("[Test] Calling JSONPlaceholder API...");
+      const response = await axios.get(
+        "https://jsonplaceholder.typicode.com/todos/1"
+      );
+      console.log("[Test] Response:", response.data);
+      Alert.alert("Success!", JSON.stringify(response.data, null, 2));
+    } catch (error: any) {
+      console.log("[Test] Error:", error.message);
+      Alert.alert("Error", error.message);
+    }
+  };
+
   return (
     <View className="flex-1 bg-background">
       <ScrollView
@@ -45,6 +60,18 @@ export function BrowseScreen() {
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
+        </View>
+
+        {/* Test Axios Button */}
+        <View className="px-4 py-2">
+          <Pressable
+            onPress={testAxios}
+            className="bg-primary px-4 py-3 rounded-lg"
+          >
+            <Text className="text-black text-center font-semibold">
+              Test Axios (JSONPlaceholder)
+            </Text>
+          </Pressable>
         </View>
 
         {/* Sources Section */}
