@@ -62,17 +62,32 @@ export class MangaKakalotSource extends Source {
     const doc = this.parseHtml(html);
 
     const manga: Manga[] = doc.selectAll(this.searchSelector, (el) => {
-      const linkEl = el.querySelector("h3 a") || el.querySelector("a");
+      const titleLinkEl = el.querySelector("h3 a");
+      const firstLinkEl = el.querySelector("a");
       const imgEl = el.querySelector("img");
 
-      const url = linkEl?.getAttribute("href") || "";
-      const title = linkEl?.textContent?.trim() || "";
-      const cover =
+      // Title and URL usually come from the h3 link, fallback to first link
+      const url = (titleLinkEl || firstLinkEl)?.getAttribute("href") || "";
+      const title = (titleLinkEl || firstLinkEl)?.textContent?.trim() || "";
+
+      let cover =
         imgEl?.getAttribute("src") || imgEl?.getAttribute("data-src") || "";
+
+      // Fallback: If img extraction failed, the img tag might be escaped text inside the FIRST link
+      if (!cover && firstLinkEl) {
+        const textContent = firstLinkEl.textContent || "";
+        // Look for src="..." in the text content
+        const srcMatch = textContent.match(/src="([^"]+)"/);
+        if (srcMatch) {
+          cover = srcMatch[1];
+        } else {
+          // Debug log if we still can't find it
+          // console.log("Regex failed on:", textContent.substring(0, 100));
+        }
+      }
 
       if (!cover) {
         console.log("[MangaKakalot] Missing cover for:", title);
-        // console.log("Image attributes:", imgEl ? (imgEl as any)._attributes : "No img element");
       }
 
       return {
