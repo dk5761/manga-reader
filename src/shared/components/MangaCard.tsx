@@ -10,6 +10,7 @@ type MangaCardProps = {
   id: string;
   title: string;
   coverUrl: string;
+  headers?: Record<string, string>; // For hotlink protected images
   onPress?: () => void;
   badge?: string; // e.g. "COMPLETED"
   progress?: number; // 0 to 100
@@ -22,6 +23,7 @@ function MangaCardComponent({
   id,
   title,
   coverUrl,
+  headers,
   onPress,
   badge,
   progress,
@@ -52,7 +54,7 @@ function MangaCardComponent({
       {/* Cover Image Container */}
       <View className="relative w-full aspect-[2/3] rounded-xl overflow-hidden bg-zinc-800">
         <Image
-          source={{ uri: coverUrl }}
+          source={{ uri: coverUrl, headers }}
           className="w-full h-full"
           resizeMode="cover"
         />

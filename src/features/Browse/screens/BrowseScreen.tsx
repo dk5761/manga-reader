@@ -1,24 +1,35 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { View, Text, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { SearchBar } from "@/shared/components/SearchBar";
-import { ExtensionCard } from "../components";
-import { MOCK_EXTENSIONS } from "../data/mockData";
+import { SourceCard, type SourceCardData } from "../components/SourceCard";
 import { useBrowseStore } from "../stores/useBrowseStore";
+import { getAllSources } from "@/sources";
 
 export function BrowseScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { searchQuery, setSearchQuery } = useBrowseStore();
 
-  const filteredExtensions = useMemo(() => {
-    if (!searchQuery.trim()) return MOCK_EXTENSIONS;
-    return MOCK_EXTENSIONS.filter((ext) =>
-      ext.name.toLowerCase().includes(searchQuery.toLowerCase())
+  // Get real sources
+  const sources = getAllSources();
+
+  const filteredSources: SourceCardData[] = useMemo(() => {
+    const sourceList = sources.map((s) => ({
+      id: s.id,
+      name: s.name,
+      icon: s.config.icon || "https://via.placeholder.com/48",
+      language: s.config.language,
+    }));
+    if (!searchQuery.trim()) return sourceList;
+    return sourceList.filter((src) =>
+      src.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [searchQuery]);
+  }, [searchQuery, sources]);
 
   const handleView = (id: string) => {
-    console.log("View source:", id);
+    router.push(`/source/${id}`);
   };
 
   return (
@@ -45,17 +56,17 @@ export function BrowseScreen() {
             </Text>
           </View>
 
-          {/* Extensions List */}
-          {filteredExtensions.map((extension) => (
-            <ExtensionCard
-              key={extension.id}
-              extension={extension}
-              onView={() => handleView(extension.id)}
+          {/* Sources List */}
+          {filteredSources.map((source) => (
+            <SourceCard
+              key={source.id}
+              source={source}
+              onView={() => handleView(source.id)}
             />
           ))}
 
           {/* Empty state */}
-          {filteredExtensions.length === 0 && (
+          {filteredSources.length === 0 && (
             <Text className="text-muted text-sm text-center py-8">
               No sources found
             </Text>

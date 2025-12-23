@@ -6,12 +6,14 @@ type SearchBarProps = {
   placeholder?: string;
   value: string;
   onChangeText: (text: string) => void;
+  onSubmitEditing?: () => void;
 };
 
 export function SearchBar({
   placeholder = "Search...",
   value,
   onChangeText,
+  onSubmitEditing,
 }: SearchBarProps) {
   const mutedColor = useCSSVariable("--color-muted");
   const placeholderColor =
@@ -27,6 +29,8 @@ export function SearchBar({
         value={value}
         onChangeText={onChangeText}
         textAlignVertical="center"
+        onSubmitEditing={onSubmitEditing}
+        returnKeyType="search"
         style={{ includeFontPadding: false }} // Android text alignment fix
       />
     </View>
