@@ -67,7 +67,13 @@ export class MangaKakalotSource extends Source {
 
       const url = linkEl?.getAttribute("href") || "";
       const title = linkEl?.textContent?.trim() || "";
-      const cover = imgEl?.getAttribute("src") || "";
+      const cover =
+        imgEl?.getAttribute("src") || imgEl?.getAttribute("data-src") || "";
+
+      if (!cover) {
+        console.log("[MangaKakalot] Missing cover for:", title);
+        // console.log("Image attributes:", imgEl ? (imgEl as any)._attributes : "No img element");
+      }
 
       return {
         id: this.getMangaIdFromUrl(url),

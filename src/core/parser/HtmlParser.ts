@@ -4,18 +4,41 @@ import type { Document, Element } from "advanced-html-parser/types";
 // Suppress xmldom warnings about HTML5 boolean attributes
 const silentErrorHandler = {
   warning: () => {}, // Silence warnings
-  error: (e: string) => console.error("[HtmlParser Error]", e),
-  fatalError: (e: string) => console.error("[HtmlParser Fatal]", e),
+  error: (e: string) => {
+    // console.error("[HtmlParser Error]", e); // Commented out to reduce noise, we catch below
+  },
+  fatalError: (e: string) => {
+    console.error("[HtmlParser Fatal]", e);
+  },
 };
 
 export class HtmlParser {
   private doc: Document;
 
   constructor(html: string) {
-    this.doc = IDomParser.parse(html, {
-      onlyBody: true,
-      errorHandler: silentErrorHandler,
-    });
+    // Sanitize HTML to fix common malformed attributes that choke strict parsers
+    const sanitized = html
+      // Fix attributes ending with semicolon e.g. <div class="foo";>
+      .replace(/(\s+[a-zA-Z-]+="[^"]*");(?=\s|>)/g, '$1"')
+      // Fix attributes without quotes containing semicolons
+      .replace(/(\s+[a-zA-Z-]+=[^"\s>]*);(?=\s|>)/g, "$1")
+      // Fix hanging semicolons in tags e.g. <img src="..." ;>
+      .replace(/\s+;(?=\s|>)/g, "")
+      // Aggressive: remove any semicolon at the end of a tag that isn't in quotes
+      .replace(/([^"'>]);(?=\s*>)/g, "$1");
+
+    try {
+      this.doc = IDomParser.parse(sanitized, {
+        onlyBody: true,
+        errorHandler: silentErrorHandler,
+      });
+    } catch (e) {
+      console.error(
+        "[HtmlParser] Parse failed. Sanitized HTML snippet:",
+        sanitized.substring(0, 500)
+      );
+      throw e;
+    }
   }
 
   /**

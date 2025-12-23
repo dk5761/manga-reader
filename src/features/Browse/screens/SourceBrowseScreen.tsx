@@ -21,6 +21,8 @@ import { getSource } from "@/sources";
 import { useSession } from "@/shared/contexts/SessionContext";
 import type { Manga } from "@/sources";
 
+import { useDebounce } from "@/shared/hooks/useDebounce";
+
 type TabType = "popular" | "latest" | "search";
 
 export function SourceBrowseScreen() {
@@ -31,6 +33,7 @@ export function SourceBrowseScreen() {
   // Default to "latest" tab
   const [activeTab, setActiveTab] = useState<TabType>("latest");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery] = useDebounce(searchQuery, 800);
   const [isSearching, setIsSearching] = useState(false);
 
   const source = getSource(sourceId || "");
@@ -48,15 +51,27 @@ export function SourceBrowseScreen() {
     }
   }, [source?.baseUrl, warmupSession]);
 
+  // Handle debounced search
+  useEffect(() => {
+    if (debouncedSearchQuery.trim()) {
+      setIsSearching(true);
+      setActiveTab("search");
+    } else if (isSearching) {
+      setIsSearching(false);
+      setActiveTab("latest");
+    }
+  }, [debouncedSearchQuery]);
+
   // Queries
   const popularQuery = usePopularManga(sourceId || "");
   const latestQuery = useLatestManga(sourceId || "");
   const searchQueryResult = useSearchManga(
     sourceId || "",
-    isSearching ? searchQuery : ""
+    isSearching ? debouncedSearchQuery : ""
   );
 
   const handleSearch = useCallback(() => {
+    // Manual submit (optional now, but good for UX)
     if (searchQuery.trim()) {
       setIsSearching(true);
       setActiveTab("search");
