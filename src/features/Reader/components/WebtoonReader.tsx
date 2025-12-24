@@ -1,5 +1,15 @@
-import { useCallback, useRef, forwardRef, useImperativeHandle } from "react";
-import { Dimensions, ViewToken } from "react-native";
+import {
+  useCallback,
+  useRef,
+  forwardRef,
+  useImperativeHandle,
+  useState,
+} from "react";
+import {
+  Dimensions,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+} from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { SharedValue } from "react-native-reanimated";
 import { WebViewZoomableImage } from "./WebViewZoomableImage";
@@ -30,6 +40,11 @@ export const WebtoonReader = forwardRef<
 ) {
   const flashListRef = useRef<any>(null);
   const lastReportedPage = useRef(1);
+  const [contentHeight, setContentHeight] = useState(0);
+
+  // Store onPageChange in a ref so the scroll callback can access it
+  const onPageChangeRef = useRef(onPageChange);
+  onPageChangeRef.current = onPageChange;
 
   // Track heights for each page (for accurate scroll calculations)
   const itemHeights = useRef<Map<number, number>>(new Map());
@@ -51,36 +66,57 @@ export const WebtoonReader = forwardRef<
     },
   }));
 
-  // Track scroll position for parent
+  // Calculate current page from scroll position
   const handleScroll = useCallback(
-    (event: { nativeEvent: { contentOffset: { y: number } } }) => {
-      if (scrollY) {
-        scrollY.value = event.nativeEvent.contentOffset.y;
-      }
-    },
-    [scrollY]
-  );
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const offsetY = event.nativeEvent.contentOffset.y;
+      const layoutHeight = event.nativeEvent.layoutMeasurement.height;
 
-  // Track which item is visible
-  const onViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      if (viewableItems.length > 0 && onPageChange) {
-        // Get the first fully visible item, or first visible
-        const firstVisible = viewableItems[0];
-        const currentPage = (firstVisible.index ?? 0) + 1;
+      if (scrollY) {
+        scrollY.value = offsetY;
+      }
+
+      // Calculate page based on scroll position
+      if (pages.length > 0 && contentHeight > 0) {
+        // Average height per item
+        const avgItemHeight = contentHeight / pages.length;
+        // Current page based on what's in the middle of the screen
+        const midPoint = offsetY + layoutHeight / 2;
+        const currentPage = Math.min(
+          pages.length,
+          Math.max(1, Math.floor(midPoint / avgItemHeight) + 1)
+        );
 
         if (currentPage !== lastReportedPage.current) {
           lastReportedPage.current = currentPage;
-          onPageChange(currentPage);
+          console.log(
+            "[WebtoonReader] Page changed to:",
+            currentPage,
+            "of",
+            pages.length
+          );
+          if (onPageChangeRef.current) {
+            onPageChangeRef.current(currentPage);
+          }
         }
       }
     },
-    [onPageChange]
+    [scrollY, pages.length, contentHeight]
   );
 
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
-  }).current;
+  const handleContentSizeChange = useCallback(
+    (w: number, h: number) => {
+      console.log(
+        "[WebtoonReader] Content size:",
+        w,
+        h,
+        "pages:",
+        pages.length
+      );
+      setContentHeight(h);
+    },
+    [pages.length]
+  );
 
   const handleHeightChange = useCallback((index: number, height: number) => {
     itemHeights.current.set(index, height);
@@ -105,26 +141,16 @@ export const WebtoonReader = forwardRef<
     []
   );
 
-  // Provide layout info for better scroll accuracy
-  const overrideItemLayout = useCallback(
-    (layout: { span?: number }, item: Page, index: number) => {
-      // FlashList v2 uses this for span, not size
-    },
-    []
-  );
-
   return (
     <FlashList
       ref={flashListRef}
       data={pages}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
-      overrideItemLayout={overrideItemLayout}
       showsVerticalScrollIndicator={false}
       onScroll={handleScroll}
       scrollEventThrottle={16}
-      onViewableItemsChanged={onViewableItemsChanged}
-      viewabilityConfig={viewabilityConfig}
+      onContentSizeChange={handleContentSizeChange}
       contentContainerStyle={{ paddingBottom }}
       decelerationRate="fast"
       drawDistance={SCREEN_WIDTH * 2}

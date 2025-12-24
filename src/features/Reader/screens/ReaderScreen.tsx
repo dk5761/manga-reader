@@ -176,8 +176,24 @@ export function ReaderScreen() {
           setCurrentPage(page);
           // Auto-mark chapter as read when reaching last page
           const totalPages = pages?.length || 0;
+
+          // Log every page change for debugging
+          console.log("[Reader] Page changed:", {
+            currentPage: page,
+            totalPages,
+            markedAsRead,
+            isLastPage: page >= totalPages,
+          });
+
           if (page >= totalPages && totalPages > 0 && !markedAsRead) {
             setMarkedAsRead(true);
+            // Log for debugging
+            console.log("[Reader] Marking chapter as read:", {
+              mangaId,
+              chapterId,
+              totalPages,
+              pageReached: page,
+            });
             markChapterRead(mangaId, chapterId || "", totalPages);
           }
         }}

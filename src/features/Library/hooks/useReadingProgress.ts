@@ -46,15 +46,32 @@ export function useMarkChapterRead() {
 
   return useCallback(
     (mangaId: string, chapterId: string, totalPages?: number) => {
+      console.log("[useMarkChapterRead] Called with:", { mangaId, chapterId });
       realm.write(() => {
         const manga = realm.objectForPrimaryKey(MangaSchema, mangaId);
-        const chapter = manga?.chapters.find((c) => c.id === chapterId);
+        console.log("[useMarkChapterRead] Manga found:", !!manga);
+        if (!manga) {
+          console.log("[useMarkChapterRead] Manga not in library!");
+          return;
+        }
+
+        console.log("[useMarkChapterRead] Looking for chapter:", chapterId);
+        console.log(
+          "[useMarkChapterRead] Available chapter IDs (first 5):",
+          manga.chapters.slice(0, 5).map((c) => c.id)
+        );
+
+        const chapter = manga.chapters.find((c) => c.id === chapterId);
         if (chapter) {
           chapter.isRead = true;
           if (totalPages) {
             chapter.totalPages = totalPages;
           }
           console.log("[Progress] Marked chapter as read:", chapterId);
+        } else {
+          console.log(
+            "[useMarkChapterRead] Chapter NOT found in manga.chapters!"
+          );
         }
       });
     },
