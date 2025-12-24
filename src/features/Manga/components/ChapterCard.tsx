@@ -12,6 +12,7 @@ type ChapterCardProps = {
   onMarkAsRead?: () => void;
   onMarkAsUnread?: () => void;
   onMarkPreviousAsRead?: () => void;
+  onMarkPreviousAsUnread?: () => void;
 };
 
 export function ChapterCard({
@@ -21,6 +22,7 @@ export function ChapterCard({
   onMarkAsRead,
   onMarkAsUnread,
   onMarkPreviousAsRead,
+  onMarkPreviousAsUnread,
 }: ChapterCardProps) {
   const swipeableRef = useRef<Swipeable>(null);
 
@@ -45,13 +47,18 @@ export function ChapterCard({
     onMarkPreviousAsRead?.();
   };
 
+  const handleMarkPreviousAsUnread = () => {
+    closeSwipeable();
+    onMarkPreviousAsUnread?.();
+  };
+
   const renderRightActions = (
     progress: RNAnimated.AnimatedInterpolation<number>,
     dragX: RNAnimated.AnimatedInterpolation<number>
   ) => {
     const translateX = dragX.interpolate({
-      inputRange: [-150, 0],
-      outputRange: [0, 150],
+      inputRange: [-225, 0],
+      outputRange: [0, 225],
       extrapolate: "clamp",
     });
 
@@ -94,7 +101,23 @@ export function ChapterCard({
         >
           <Ionicons name="checkmark-done-outline" size={22} color="#fff" />
           <Text style={{ color: "#fff", fontSize: 10, marginTop: 4 }}>
-            Below
+            Read ↓
+          </Text>
+        </RectButton>
+
+        {/* Mark all previous as unread */}
+        <RectButton
+          style={{
+            width: 75,
+            backgroundColor: "#ef4444",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={handleMarkPreviousAsUnread}
+        >
+          <Ionicons name="close-circle-outline" size={22} color="#fff" />
+          <Text style={{ color: "#fff", fontSize: 10, marginTop: 4 }}>
+            Unread ↓
           </Text>
         </RectButton>
       </RNAnimated.View>

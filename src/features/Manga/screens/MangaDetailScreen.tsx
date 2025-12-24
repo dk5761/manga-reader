@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import {
   useMarkChapterRead,
   useMarkChapterUnread,
   useMarkPreviousAsRead,
+  useMarkPreviousAsUnread,
 } from "@/features/Library/hooks";
 import { useSession } from "@/shared/contexts/SessionContext";
 
@@ -74,9 +75,107 @@ export function MangaDetailScreen() {
   const markChapterUnread = useMarkChapterUnread();
   const markPreviousAsRead = useMarkPreviousAsRead();
 
-  // Create a set of read chapter IDs for quick lookup
-  const readChapterIds = new Set(
-    libraryManga?.chapters?.filter((ch) => ch.isRead)?.map((ch) => ch.id) || []
+  // Optimistic state for immediate UI updates
+  const [optimisticReadIds, setOptimisticReadIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [optimisticUnreadIds, setOptimisticUnreadIds] = useState<Set<string>>(
+    new Set()
+  );
+
+  // Combine Realm data with optimistic updates
+  const readChapterIds = useMemo(() => {
+    const realmReadIds = new Set(
+      libraryManga?.chapters?.filter((ch) => ch.isRead)?.map((ch) => ch.id) ||
+        []
+    );
+    // Add optimistic reads, remove optimistic unreads
+    optimisticReadIds.forEach((id) => realmReadIds.add(id));
+    optimisticUnreadIds.forEach((id) => realmReadIds.delete(id));
+    return realmReadIds;
+  }, [libraryManga?.chapters, optimisticReadIds, optimisticUnreadIds]);
+
+  // Optimistic handlers
+  const handleMarkAsRead = useCallback(
+    (chapterId: string) => {
+      // Optimistic update
+      setOptimisticReadIds((prev) => new Set(prev).add(chapterId));
+      setOptimisticUnreadIds((prev) => {
+        const next = new Set(prev);
+        next.delete(chapterId);
+        return next;
+      });
+      // Background DB update
+      setTimeout(() => markChapterRead(libraryId, chapterId), 0);
+    },
+    [libraryId, markChapterRead]
+  );
+
+  const handleMarkAsUnread = useCallback(
+    (chapterId: string) => {
+      // Optimistic update
+      setOptimisticUnreadIds((prev) => new Set(prev).add(chapterId));
+      setOptimisticReadIds((prev) => {
+        const next = new Set(prev);
+        next.delete(chapterId);
+        return next;
+      });
+      // Background DB update
+      setTimeout(() => markChapterUnread(libraryId, chapterId), 0);
+    },
+    [libraryId, markChapterUnread]
+  );
+
+  const handleMarkPreviousAsRead = useCallback(
+    (chapterNumber: number) => {
+      // Find all chapters with lower number and optimistically mark them
+      const chapterIdsToMark =
+        chapters
+          ?.filter((ch) => ch.number < chapterNumber)
+          ?.map((ch) => ch.id) || [];
+
+      // Optimistic update for all
+      setOptimisticReadIds((prev) => {
+        const next = new Set(prev);
+        chapterIdsToMark.forEach((id) => next.add(id));
+        return next;
+      });
+      setOptimisticUnreadIds((prev) => {
+        const next = new Set(prev);
+        chapterIdsToMark.forEach((id) => next.delete(id));
+        return next;
+      });
+      // Background DB update
+      setTimeout(() => markPreviousAsRead(libraryId, chapterNumber), 0);
+    },
+    [libraryId, chapters, markPreviousAsRead]
+  );
+
+  const markPreviousUnread = useMarkPreviousAsUnread();
+
+  const handleMarkPreviousAsUnread = useCallback(
+    (chapterNumber: number) => {
+      // Find all chapters with lower number and optimistically mark them
+      const chapterIdsToMark =
+        chapters
+          ?.filter((ch) => ch.number < chapterNumber)
+          ?.map((ch) => ch.id) || [];
+
+      // Optimistic update for all
+      setOptimisticUnreadIds((prev) => {
+        const next = new Set(prev);
+        chapterIdsToMark.forEach((id) => next.add(id));
+        return next;
+      });
+      setOptimisticReadIds((prev) => {
+        const next = new Set(prev);
+        chapterIdsToMark.forEach((id) => next.delete(id));
+        return next;
+      });
+      // Background DB update
+      setTimeout(() => markPreviousUnread(libraryId, chapterNumber), 0);
+    },
+    [libraryId, chapters, markPreviousUnread]
   );
 
   const fgColor = useCSSVariable("--color-foreground");
@@ -152,19 +251,6 @@ export function MangaDetailScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      {/* Header */}
-      <View
-        className="flex-row items-center justify-between px-4"
-        style={{ paddingTop: insets.top + 8, paddingBottom: 8 }}
-      >
-        <Pressable onPress={() => router.back()} className="p-2 -ml-2">
-          <Ionicons name="arrow-back" size={24} color={foreground} />
-        </Pressable>
-        <Pressable className="p-2 -mr-2">
-          <Ionicons name="ellipsis-vertical" size={24} color={foreground} />
-        </Pressable>
-      </View>
-
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
@@ -246,10 +332,13 @@ export function MangaDetailScreen() {
               chapter={chapter}
               isRead={readChapterIds.has(chapter.id)}
               onPress={() => handleChapterPress(chapter.id, chapter.url)}
-              onMarkAsRead={() => markChapterRead(libraryId, chapter.id)}
-              onMarkAsUnread={() => markChapterUnread(libraryId, chapter.id)}
+              onMarkAsRead={() => handleMarkAsRead(chapter.id)}
+              onMarkAsUnread={() => handleMarkAsUnread(chapter.id)}
               onMarkPreviousAsRead={() =>
-                markPreviousAsRead(libraryId, chapter.number)
+                handleMarkPreviousAsRead(chapter.number)
+              }
+              onMarkPreviousAsUnread={() =>
+                handleMarkPreviousAsUnread(chapter.number)
               }
             />
           ))}

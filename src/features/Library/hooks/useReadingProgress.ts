@@ -109,6 +109,40 @@ export function useMarkPreviousAsRead() {
 }
 
 /**
+ * Mark all previous chapters as unread
+ */
+export function useMarkPreviousAsUnread() {
+  const realm = useRealm();
+
+  return useCallback(
+    (mangaId: string, chapterNumber: number) => {
+      realm.write(() => {
+        const manga = realm.objectForPrimaryKey(MangaSchema, mangaId);
+        if (!manga) return;
+
+        let marked = 0;
+        manga.chapters.forEach((chapter) => {
+          if (chapter.number < chapterNumber && chapter.isRead) {
+            chapter.isRead = false;
+            chapter.lastPageRead = 0;
+            marked++;
+          }
+        });
+
+        if (marked > 0) {
+          console.log(
+            "[Progress] Marked",
+            marked,
+            "previous chapters as unread"
+          );
+        }
+      });
+    },
+    [realm]
+  );
+}
+
+/**
  * Mark chapter as unread
  */
 export function useMarkChapterUnread() {

@@ -14,5 +14,6 @@ export {
   useMarkChapterRead,
   useMarkChapterUnread,
   useMarkPreviousAsRead,
+  useMarkPreviousAsUnread,
   useGetProgress,
 } from "./useReadingProgress";
