@@ -13,6 +13,7 @@ type PostFunction = (
   headers?: Record<string, string>,
   timeoutMs?: number
 ) => Promise<string>;
+type InvalidateSessionFunction = (baseUrl: string) => void;
 
 type PendingRequest = {
   url: string;
@@ -30,19 +31,67 @@ type PendingPostRequest = {
   reject: (error: Error) => void;
 };
 
+// Error thrown when CF challenge is detected
+export class CloudflareExpiredError extends Error {
+  constructor(public url: string) {
+    super(`Cloudflare session expired for: ${url}`);
+    this.name = "CloudflareExpiredError";
+  }
+}
+
+// Patterns that indicate a CF challenge page
+const CF_CHALLENGE_PATTERNS = [
+  "challenge-running",
+  "cf-turnstile",
+  "Just a moment...",
+  "Checking your browser",
+  "Enable JavaScript and cookies",
+  "_cf_chl",
+  "cf-please-wait",
+];
+
 class WebViewFetcherServiceClass {
   private fetchFunction: FetchFunction | null = null;
   private postFunction: PostFunction | null = null;
+  private invalidateSessionFn: InvalidateSessionFunction | null = null;
   private pendingFetchRequests: PendingRequest[] = [];
   private pendingPostRequests: PendingPostRequest[] = [];
 
   /**
+   * Check if HTML contains Cloudflare challenge page
+   */
+  private detectCfChallenge(html: string): boolean {
+    const htmlLower = html.toLowerCase();
+    return CF_CHALLENGE_PATTERNS.some(
+      (pattern) =>
+        htmlLower.includes(pattern.toLowerCase()) || html.includes(pattern)
+    );
+  }
+
+  /**
+   * Extract base URL from full URL
+   */
+  private getBaseUrl(url: string): string {
+    try {
+      const parsed = new URL(url);
+      return `${parsed.protocol}//${parsed.host}`;
+    } catch {
+      return url;
+    }
+  }
+
+  /**
    * Register the fetch functions from WebViewFetcherProvider
    */
-  register(fetchFn: FetchFunction, postFn: PostFunction) {
+  register(
+    fetchFn: FetchFunction,
+    postFn: PostFunction,
+    invalidateSessionFn?: InvalidateSessionFunction
+  ) {
     console.log("[WebViewFetcherService] Registered");
     this.fetchFunction = fetchFn;
     this.postFunction = postFn;
+    this.invalidateSessionFn = invalidateSessionFn || null;
 
     // Process any pending fetch requests
     while (this.pendingFetchRequests.length > 0) {
@@ -77,6 +126,7 @@ class WebViewFetcherServiceClass {
     console.log("[WebViewFetcherService] Unregistered");
     this.fetchFunction = null;
     this.postFunction = null;
+    this.invalidateSessionFn = null;
   }
 
   /**
@@ -88,6 +138,7 @@ class WebViewFetcherServiceClass {
 
   /**
    * Fetch HTML from URL using hidden WebView (GET request via navigation)
+   * Detects CF challenge in response and invalidates session if found
    */
   async fetchHtml(url: string, timeoutMs = 30000): Promise<string> {
     if (!this.fetchFunction) {
@@ -112,11 +163,24 @@ class WebViewFetcherServiceClass {
     }
 
     console.log("[WebViewFetcherService] Fetching:", url.substring(0, 60));
-    return this.fetchFunction(url, timeoutMs);
+    const html = await this.fetchFunction(url, timeoutMs);
+
+    // Check for CF challenge in response
+    if (this.detectCfChallenge(html)) {
+      console.log("[WebViewFetcherService] CF challenge detected in response!");
+      const baseUrl = this.getBaseUrl(url);
+      if (this.invalidateSessionFn) {
+        this.invalidateSessionFn(baseUrl);
+      }
+      throw new CloudflareExpiredError(url);
+    }
+
+    return html;
   }
 
   /**
    * POST request via WebView's JavaScript fetch (uses WebView's cookies/fingerprint)
+   * Detects CF challenge in response and invalidates session if found
    */
   async postHtml(
     url: string,
@@ -152,7 +216,21 @@ class WebViewFetcherServiceClass {
     }
 
     console.log("[WebViewFetcherService] POSTing:", url.substring(0, 60));
-    return this.postFunction(url, body, headers, timeoutMs);
+    const html = await this.postFunction(url, body, headers, timeoutMs);
+
+    // Check for CF challenge in response
+    if (this.detectCfChallenge(html)) {
+      console.log(
+        "[WebViewFetcherService] CF challenge detected in POST response!"
+      );
+      const baseUrl = this.getBaseUrl(url);
+      if (this.invalidateSessionFn) {
+        this.invalidateSessionFn(baseUrl);
+      }
+      throw new CloudflareExpiredError(url);
+    }
+
+    return html;
   }
 }
 

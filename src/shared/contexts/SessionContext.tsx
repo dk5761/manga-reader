@@ -15,6 +15,7 @@ type SessionState = {
 type SessionContextType = {
   isSessionReady: (baseUrl: string) => boolean;
   warmupSession: (baseUrl: string, requireCfClearance?: boolean) => void;
+  invalidateSession: (baseUrl: string) => void;
 };
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -64,6 +65,19 @@ export function SessionProvider({ children }: SessionProviderProps) {
     [readyUrls, warmingConfigs]
   );
 
+  /**
+   * Invalidate a session (called when CF challenge is detected in response)
+   * This removes the URL from ready set, triggering re-warmup on next access
+   */
+  const invalidateSession = useCallback((baseUrl: string) => {
+    console.log("[SessionProvider] Invalidating session for:", baseUrl);
+    setReadyUrls((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(baseUrl);
+      return newSet;
+    });
+  }, []);
+
   const handleWarmupReady = useCallback((baseUrl: string) => {
     console.log("[SessionProvider] Session ready for:", baseUrl);
     setReadyUrls((prev) => new Set([...prev, baseUrl]));
@@ -71,7 +85,9 @@ export function SessionProvider({ children }: SessionProviderProps) {
   }, []);
 
   return (
-    <SessionContext.Provider value={{ isSessionReady, warmupSession }}>
+    <SessionContext.Provider
+      value={{ isSessionReady, warmupSession, invalidateSession }}
+    >
       {children}
       {/* Render hidden WebViews for each URL being warmed up */}
       {warmingConfigs.map((config) => (
@@ -79,7 +95,6 @@ export function SessionProvider({ children }: SessionProviderProps) {
           key={config.url}
           url={config.url}
           onReady={() => handleWarmupReady(config.url)}
-          timeout={config.requireCfClearance ? 20000 : 8000}
           requireCfClearance={config.requireCfClearance}
         />
       ))}

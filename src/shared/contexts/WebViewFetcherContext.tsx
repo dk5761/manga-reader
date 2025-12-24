@@ -11,6 +11,7 @@ import { View, StyleSheet } from "react-native";
 import { WebView, WebViewMessageEvent } from "react-native-webview";
 import { HttpClient } from "@/core/http";
 import { WebViewFetcherService } from "@/core/http/WebViewFetcherService";
+import { useSession } from "./SessionContext";
 
 type RequestType = "navigate" | "post";
 
@@ -435,13 +436,16 @@ export function WebViewFetcherProvider({
     setIsReady(true);
   }, []);
 
+  // Get invalidateSession from SessionContext
+  const { invalidateSession } = useSession();
+
   // Register with the global service so non-React code can use it
   useEffect(() => {
-    WebViewFetcherService.register(fetchHtml, postHtml);
+    WebViewFetcherService.register(fetchHtml, postHtml, invalidateSession);
     return () => {
       WebViewFetcherService.unregister();
     };
-  }, [fetchHtml, postHtml]);
+  }, [fetchHtml, postHtml, invalidateSession]);
 
   return (
     <WebViewFetcherContext.Provider value={{ fetchHtml, postHtml, isReady }}>

@@ -14,15 +14,15 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <DatabaseProvider>
           <QueryProvider>
-            <WebViewFetcherProvider>
-              <SessionProvider>
+            <SessionProvider>
+              <WebViewFetcherProvider>
                 <Stack
                   screenOptions={{
                     headerShown: false,
                   }}
                 />
-              </SessionProvider>
-            </WebViewFetcherProvider>
+              </WebViewFetcherProvider>
+            </SessionProvider>
           </QueryProvider>
         </DatabaseProvider>
       </SafeAreaProvider>
