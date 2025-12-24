@@ -13,6 +13,11 @@ import { WebViewImage, CollapsibleText } from "@/shared/components";
 import { ChapterCard, GenreChip } from "../components";
 import { useMangaDetails, useChapterList } from "../api/manga.queries";
 import { getSource } from "@/sources";
+import {
+  useIsInLibrary,
+  useAddToLibrary,
+  useRemoveFromLibrary,
+} from "@/features/Library/hooks";
 
 export function MangaDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -37,8 +42,25 @@ export function MangaDetailScreen() {
     error: chaptersError,
   } = useChapterList(sourceId || "", url || "");
 
+  // Library hooks
+  const isInLibrary = useIsInLibrary(sourceId || "", id || "");
+  const addToLibrary = useAddToLibrary();
+  const removeFromLibrary = useRemoveFromLibrary();
+
   const fgColor = useCSSVariable("--color-foreground");
   const foreground = typeof fgColor === "string" ? fgColor : "#fff";
+
+  const handleLibraryToggle = () => {
+    if (!manga || !chapters || !sourceId || !id) return;
+
+    const libraryId = `${sourceId}_${id}`;
+
+    if (isInLibrary) {
+      removeFromLibrary(libraryId);
+    } else {
+      addToLibrary(manga, chapters, sourceId);
+    }
+  };
 
   // Loading state
   if (isMangaLoading || isChaptersLoading) {
@@ -142,12 +164,25 @@ export function MangaDetailScreen() {
 
           {/* Add to Library Button - Full Width */}
           <Pressable
-            className="w-full mt-6 bg-primary rounded-lg py-3 items-center justify-center shadow-lg active:opacity-90"
-            onPress={() => console.log("Add to Library")}
+            className={`w-full mt-6 rounded-lg py-3 items-center justify-center shadow-lg active:opacity-90 ${
+              isInLibrary ? "bg-surface border border-primary" : "bg-primary"
+            }`}
+            onPress={handleLibraryToggle}
           >
-            <Text className="text-black font-bold text-xs uppercase tracking-widest">
-              Add to Library
-            </Text>
+            <View className="flex-row items-center gap-2">
+              <Ionicons
+                name={isInLibrary ? "checkmark-circle" : "add-circle-outline"}
+                size={18}
+                color={isInLibrary ? "#00d9ff" : "#000"}
+              />
+              <Text
+                className={`font-bold text-xs uppercase tracking-widest ${
+                  isInLibrary ? "text-primary" : "text-black"
+                }`}
+              >
+                {isInLibrary ? "In Library" : "Add to Library"}
+              </Text>
+            </View>
           </Pressable>
         </View>
 

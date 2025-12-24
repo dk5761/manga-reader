@@ -6,22 +6,25 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryProvider } from "@/core/providers";
 import { SessionProvider } from "@/shared/contexts/SessionContext";
 import { WebViewFetcherProvider } from "@/shared/contexts/WebViewFetcherContext";
+import { DatabaseProvider } from "@/core/database";
 
 export default function RootLayout() {
   return (
     <GestureHandlerRootView className="flex-1">
       <SafeAreaProvider>
-        <QueryProvider>
-          <WebViewFetcherProvider>
-            <SessionProvider>
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                }}
-              />
-            </SessionProvider>
-          </WebViewFetcherProvider>
-        </QueryProvider>
+        <DatabaseProvider>
+          <QueryProvider>
+            <WebViewFetcherProvider>
+              <SessionProvider>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                  }}
+                />
+              </SessionProvider>
+            </WebViewFetcherProvider>
+          </QueryProvider>
+        </DatabaseProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

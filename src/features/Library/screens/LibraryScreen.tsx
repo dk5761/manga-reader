@@ -3,16 +3,22 @@ import { View } from "react-native";
 import { useRouter } from "expo-router";
 import { LibraryFilter, LibraryGrid } from "../components";
 import { EmptyState } from "@/shared/components";
-import { LIBRARY_FILTERS, MOCK_LIBRARY_DATA } from "../data/mockData";
+import { LIBRARY_FILTERS } from "../data/mockData";
 import { useLibraryStore } from "../stores/useLibraryStore";
+import { useLibraryManga } from "../hooks";
 
 export function LibraryScreen() {
   const router = useRouter();
   const { activeCategory, setActiveCategory } = useLibraryStore();
 
+  // Fetch from Realm database
+  const libraryManga = useLibraryManga();
+
   // Filter manga based on active category from store
   const filteredManga = useMemo(() => {
-    if (activeCategory === "All") return MOCK_LIBRARY_DATA;
+    if (activeCategory === "All") {
+      return [...libraryManga];
+    }
 
     const statusMap: Record<string, string> = {
       Reading: "reading",
@@ -22,20 +28,54 @@ export function LibraryScreen() {
       Dropped: "dropped",
     };
 
-    return MOCK_LIBRARY_DATA.filter(
+    return libraryManga.filter(
       (manga) => manga.readingStatus === statusMap[activeCategory]
     );
-  }, [activeCategory]);
+  }, [activeCategory, libraryManga]);
+
+  // Transform Realm objects to grid format
+  const gridData = useMemo(() => {
+    return filteredManga.map((manga) => {
+      const readChapters = manga.chapters.filter((ch) => ch.isRead).length;
+      const totalChapters = manga.chapters.length;
+      const lastReadChapter = manga.progress?.lastChapterNumber;
+
+      return {
+        id: manga.id,
+        title: manga.title,
+        cover: manga.cover || "",
+        readingStatus: (manga.readingStatus || "reading") as
+          | "reading"
+          | "completed"
+          | "plan_to_read"
+          | "on_hold"
+          | "dropped",
+        totalChapters,
+        currentChapter: lastReadChapter,
+        unreadCount: totalChapters - readChapters,
+      };
+    });
+  }, [filteredManga]);
 
   const handleMangaPress = (id: string) => {
-    router.push(`/manga/${id}`);
+    const manga = libraryManga.find((m) => m.id === id);
+    if (manga) {
+      router.push({
+        pathname: "/manga/[id]",
+        params: {
+          id: manga.id.replace(`${manga.sourceId}_`, ""),
+          sourceId: manga.sourceId,
+          url: manga.url,
+        },
+      });
+    }
   };
 
   return (
     <View className="flex-1 bg-background">
       {/* Grid with filters as list header */}
       <LibraryGrid
-        manga={filteredManga}
+        manga={gridData}
         onMangaPress={handleMangaPress}
         ListHeaderComponent={
           <View className="pb-4">
@@ -49,12 +89,16 @@ export function LibraryScreen() {
       />
 
       {/* Empty State Overlay */}
-      {filteredManga.length === 0 && (
+      {gridData.length === 0 && (
         <View className="absolute inset-x-0 top-1/3">
           <EmptyState
             icon="book-outline"
             title="No manga found"
-            description={`No titles in "${activeCategory}"`}
+            description={
+              activeCategory === "All"
+                ? "Add manga from Browse tab"
+                : `No titles in "${activeCategory}"`
+            }
           />
         </View>
       )}
