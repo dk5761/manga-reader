@@ -18,6 +18,7 @@ import {
   useIsInLibrary,
   useAddToLibrary,
   useRemoveFromLibrary,
+  useLibraryMangaById,
 } from "@/features/Library/hooks";
 import { useSession } from "@/shared/contexts/SessionContext";
 
@@ -60,9 +61,16 @@ export function MangaDetailScreen() {
   } = useChapterList(sourceId || "", url || "", sessionReady);
 
   // Library hooks
-  const isInLibrary = useIsInLibrary(sourceId || "", id || "");
+  const libraryId = `${sourceId}_${id}`;
+  const libraryManga = useLibraryMangaById(libraryId);
+  const isInLibrary = !!libraryManga;
   const addToLibrary = useAddToLibrary();
   const removeFromLibrary = useRemoveFromLibrary();
+
+  // Create a set of read chapter IDs for quick lookup
+  const readChapterIds = new Set(
+    libraryManga?.chapters?.filter((ch) => ch.isRead)?.map((ch) => ch.id) || []
+  );
 
   const fgColor = useCSSVariable("--color-foreground");
   const foreground = typeof fgColor === "string" ? fgColor : "#fff";
@@ -229,6 +237,7 @@ export function MangaDetailScreen() {
             <ChapterCard
               key={chapter.id}
               chapter={chapter}
+              isRead={readChapterIds.has(chapter.id)}
               onPress={() => handleChapterPress(chapter.id, chapter.url)}
               onOptions={() => console.log("Options:", chapter.id)}
             />

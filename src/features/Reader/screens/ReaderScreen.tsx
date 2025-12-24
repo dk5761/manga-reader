@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import { WebtoonReader, WebtoonReaderHandle } from "../components";
 import { useChapterPages } from "../api/reader.queries";
 import { getSource } from "@/sources";
 import { useChapterList } from "../../Manga/api/manga.queries";
+import { useMarkChapterRead } from "@/features/Library/hooks";
 
 export function ReaderScreen() {
   const insets = useSafeAreaInsets();
@@ -42,9 +43,22 @@ export function ReaderScreen() {
   const { data: chapters } = useChapterList(sourceId || "", mangaUrl || "");
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [markedAsRead, setMarkedAsRead] = useState(false);
   const controlsVisible = useSharedValue(1);
   const scrollY = useSharedValue(0);
   const scrollViewRef = useRef<WebtoonReaderHandle>(null);
+
+  // Mark chapter as read hook
+  const markChapterRead = useMarkChapterRead();
+
+  // Get manga ID for library lookup (format: sourceId_mangaId)
+  // Extract manga ID from mangaUrl
+  const getMangaIdFromUrl = (url: string): string => {
+    // Extract the slug from URL like /manga/slug or /series/slug/
+    const parts = url.split("/").filter(Boolean);
+    return parts[parts.length - 1] || parts[parts.length - 2] || "";
+  };
+  const mangaId = `${sourceId}_${getMangaIdFromUrl(mangaUrl || "")}`;
 
   // Find current chapter index and determine prev/next
   const currentChapterIndex = chapters?.findIndex((ch) => ch.url === url) ?? -1;
@@ -158,7 +172,15 @@ export function ReaderScreen() {
         ref={scrollViewRef}
         pages={pages}
         baseUrl={source?.baseUrl}
-        onPageChange={setCurrentPage}
+        onPageChange={(page) => {
+          setCurrentPage(page);
+          // Auto-mark chapter as read when reaching last page
+          const totalPages = pages?.length || 0;
+          if (page >= totalPages && totalPages > 0 && !markedAsRead) {
+            setMarkedAsRead(true);
+            markChapterRead(mangaId, chapterId || "", totalPages);
+          }
+        }}
         onTap={toggleControls}
         scrollY={scrollY}
         paddingBottom={insets.bottom}

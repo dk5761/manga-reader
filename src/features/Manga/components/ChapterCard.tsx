@@ -5,11 +5,17 @@ import type { Chapter } from "@/sources";
 
 type ChapterCardProps = {
   chapter: Chapter;
+  isRead?: boolean;
   onPress?: () => void;
   onOptions?: () => void;
 };
 
-export function ChapterCard({ chapter, onPress, onOptions }: ChapterCardProps) {
+export function ChapterCard({
+  chapter,
+  isRead = false,
+  onPress,
+  onOptions,
+}: ChapterCardProps) {
   const mutedColor = useCSSVariable("--color-muted");
   const muted = typeof mutedColor === "string" ? mutedColor : "#71717a";
 
@@ -17,6 +23,7 @@ export function ChapterCard({ chapter, onPress, onOptions }: ChapterCardProps) {
     <Pressable
       onPress={onPress}
       className="flex-row items-center justify-between px-4 py-3 active:bg-surface/50"
+      style={{ opacity: isRead ? 0.5 : 1 }}
     >
       <View className="flex-1">
         <Text className="text-foreground text-sm font-medium">
