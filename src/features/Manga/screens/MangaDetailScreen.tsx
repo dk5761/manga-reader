@@ -5,6 +5,7 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -57,12 +58,26 @@ export function MangaDetailScreen() {
     data: manga,
     isLoading: isMangaLoading,
     error: mangaError,
+    refetch: refetchManga,
   } = useMangaDetails(sourceId || "", url || "", sessionReady);
   const {
     data: chapters,
     isLoading: isChaptersLoading,
     error: chaptersError,
+    refetch: refetchChapters,
   } = useChapterList(sourceId || "", url || "", sessionReady);
+
+  // Pull to refresh state
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refetchManga(), refetchChapters()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchManga, refetchChapters]);
 
   // Library hooks
   const libraryId = `${sourceId}_${id}`;
@@ -255,6 +270,14 @@ export function MangaDetailScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={foreground}
+            colors={[foreground]}
+          />
+        }
       >
         {/* Info Section - Centered Layout */}
         <View className="items-start px-4 mb-6">
