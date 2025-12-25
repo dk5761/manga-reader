@@ -1,10 +1,5 @@
 import { memo } from "react";
 import { View, Text, Pressable } from "react-native";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from "react-native-reanimated";
 import { Image } from "expo-image";
 import { WebViewImage } from "./WebViewImage";
 
@@ -13,15 +8,13 @@ type MangaCardProps = {
   title: string;
   coverUrl: string;
   localCoverUrl?: string;
-  baseUrl?: string; // Source base URL for setting origin
+  baseUrl?: string;
   headers?: Record<string, string>;
   onPress?: () => void;
   badge?: string;
   progress?: number;
   subtitle?: string;
 };
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 function MangaCardComponent({
   id,
@@ -35,27 +28,18 @@ function MangaCardComponent({
   progress,
   subtitle,
 }: MangaCardProps) {
-  const scale = useSharedValue(1);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const handlePressIn = () => {
-    scale.value = withSpring(0.95, { damping: 15, stiffness: 300 });
-  };
-
-  const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 300 });
-  };
-
   return (
-    <AnimatedPressable
+    <Pressable
       onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
       className="w-full flex-col gap-2"
-      style={[animatedStyle]}
+      android_ripple={{
+        color: "rgba(255, 255, 255, 0.2)",
+        borderless: false,
+        foreground: true,
+      }}
+      style={({ pressed }) => ({
+        opacity: pressed ? 0.9 : 1,
+      })}
     >
       {/* Cover Image Container */}
       <View className="relative w-full aspect-2/3 rounded-xl overflow-hidden bg-zinc-800">
@@ -109,7 +93,7 @@ function MangaCardComponent({
           </View>
         )}
       </View>
-    </AnimatedPressable>
+    </Pressable>
   );
 }
 
