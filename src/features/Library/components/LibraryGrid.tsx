@@ -43,6 +43,7 @@ export function LibraryGrid({
                 id={item.id}
                 title={item.title}
                 coverUrl={item.cover}
+                localCoverUrl={item.localCover}
                 onPress={() => onMangaPress(item.id)}
                 badge={
                   item.readingStatus === "completed" ? "COMPLETED" : undefined

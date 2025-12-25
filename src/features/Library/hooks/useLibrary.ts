@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import { useRealm, useQuery, useObject } from "@realm/react";
 import { MangaSchema, ChapterSchema, ReadingStatus } from "@/core/database";
 import type { Manga, Chapter } from "@/sources";
+import { downloadCover, deleteCover } from "@/core/services/ImageCacheService";
 
 /**
  * Get all manga in library
@@ -58,7 +59,7 @@ export function useAddToLibrary() {
   const realm = useRealm();
 
   return useCallback(
-    (manga: Manga, chapters: Chapter[], sourceId: string) => {
+    async (manga: Manga, chapters: Chapter[], sourceId: string) => {
       const id = `${sourceId}_${manga.id}`;
 
       realm.write(() => {
@@ -95,6 +96,19 @@ export function useAddToLibrary() {
 
         console.log("[Library] Added manga:", manga.title);
       });
+
+      // Background cover download
+      if (manga.cover) {
+        const localPath = await downloadCover(manga.cover, id);
+        if (localPath) {
+          realm.write(() => {
+            const addedManga = realm.objectForPrimaryKey(MangaSchema, id);
+            if (addedManga) {
+              addedManga.localCover = localPath;
+            }
+          });
+        }
+      }
     },
     [realm]
   );
@@ -108,6 +122,9 @@ export function useRemoveFromLibrary() {
 
   return useCallback(
     (id: string) => {
+      // Background cover deletion
+      deleteCover(id);
+
       realm.write(() => {
         const manga = realm.objectForPrimaryKey(MangaSchema, id);
         if (manga) {

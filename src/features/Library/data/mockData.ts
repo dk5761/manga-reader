@@ -11,6 +11,7 @@ export interface LibraryManga {
   id: string;
   title: string;
   cover: string;
+  localCover?: string;
   status?: "Completed" | "Ongoing" | "Hiatus";
   readingStatus:
     | "reading"

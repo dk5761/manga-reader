@@ -60,6 +60,7 @@ export class MangaSchema extends Realm.Object<MangaSchema> {
   sourceId!: string;
   title!: string;
   cover?: string;
+  localCover?: string;
   url!: string;
   author?: string;
   artist?: string;
@@ -81,6 +82,7 @@ export class MangaSchema extends Realm.Object<MangaSchema> {
       sourceId: "string",
       title: "string",
       cover: "string?",
+      localCover: "string?",
       url: "string",
       author: "string?",
       artist: "string?",

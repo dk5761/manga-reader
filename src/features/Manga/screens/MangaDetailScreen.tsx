@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useCSSVariable } from "uniwind";
@@ -260,12 +261,21 @@ export function MangaDetailScreen() {
           <View className="flex-row w-full gap-5">
             {/* Cover Image - Left Side */}
             <View className="w-[120px] aspect-2/3 rounded-lg bg-surface shadow-md overflow-hidden">
-              <WebViewImage
-                uri={manga.cover}
-                baseUrl={source?.baseUrl}
-                resizeMode="cover"
-                style={{ width: "100%", height: "100%" }}
-              />
+              {libraryManga?.localCover ? (
+                <Image
+                  source={{ uri: libraryManga.localCover }}
+                  contentFit="cover"
+                  style={{ width: "100%", height: "100%" }}
+                  cachePolicy="memory-disk"
+                />
+              ) : (
+                <WebViewImage
+                  uri={manga.cover}
+                  baseUrl={source?.baseUrl}
+                  resizeMode="cover"
+                  style={{ width: "100%", height: "100%" }}
+                />
+              )}
             </View>
 
             {/* Right Side Info */}

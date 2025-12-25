@@ -5,12 +5,14 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from "react-native-reanimated";
+import { Image } from "expo-image";
 import { WebViewImage } from "./WebViewImage";
 
 type MangaCardProps = {
   id: string;
   title: string;
   coverUrl: string;
+  localCoverUrl?: string;
   baseUrl?: string; // Source base URL for setting origin
   headers?: Record<string, string>;
   onPress?: () => void;
@@ -25,6 +27,7 @@ function MangaCardComponent({
   id,
   title,
   coverUrl,
+  localCoverUrl,
   baseUrl = "https://www.mangakakalot.gg",
   headers,
   onPress,
@@ -56,12 +59,21 @@ function MangaCardComponent({
     >
       {/* Cover Image Container */}
       <View className="relative w-full aspect-2/3 rounded-xl overflow-hidden bg-zinc-800">
-        <WebViewImage
-          uri={coverUrl}
-          baseUrl={baseUrl}
-          resizeMode="cover"
-          style={{ width: "100%", height: "100%" }}
-        />
+        {localCoverUrl ? (
+          <Image
+            source={{ uri: localCoverUrl }}
+            contentFit="cover"
+            style={{ width: "100%", height: "100%" }}
+            cachePolicy="memory-disk"
+          />
+        ) : (
+          <WebViewImage
+            uri={coverUrl}
+            baseUrl={baseUrl}
+            resizeMode="cover"
+            style={{ width: "100%", height: "100%" }}
+          />
+        )}
 
         {/* Badge - Top Left */}
         {badge && (
