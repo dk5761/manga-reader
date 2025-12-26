@@ -3,6 +3,7 @@
     "scheme": "acme",
     "userInterfaceStyle": "automatic",
     "orientation": "default",
+    "newArchEnabled": true,
     "web": {
       "output": "static"
     },

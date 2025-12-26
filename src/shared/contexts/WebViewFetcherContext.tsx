@@ -152,7 +152,7 @@ export function WebViewFetcherProvider({
   const [isReady, setIsReady] = useState(false);
   const requestQueueRef = useRef<FetchRequest[]>([]);
   const currentRequestRef = useRef<FetchRequest | null>(null);
-  const currentOriginRef = useRef<string>("about:blank");
+  const currentOriginRef = useRef<string>("https://localhost");
   const retryCountRef = useRef(0);
   const maxRetries = 3;
 
@@ -453,7 +453,10 @@ export function WebViewFetcherProvider({
       <View style={styles.container} pointerEvents="none">
         <WebView
           ref={webViewRef}
-          source={{ uri: "about:blank" }}
+          source={{
+            html: "<html><body></body></html>",
+            baseUrl: "https://localhost/",
+          }}
           style={styles.webview}
           onLoadEnd={handleLoadEnd}
           onMessage={handleMessage}
