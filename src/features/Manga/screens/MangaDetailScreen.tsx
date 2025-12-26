@@ -13,7 +13,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useCSSVariable } from "uniwind";
 import { WebViewImage, CollapsibleText } from "@/shared/components";
-import { ChapterCard, GenreChip } from "../components";
+import {
+  ChapterCard,
+  GenreChip,
+  ReadingStatusSheet,
+  getStatusLabel,
+} from "../components";
 import { useMangaDetails, useChapterList } from "../api/manga.queries";
 import { getSource } from "@/sources";
 import {
@@ -24,8 +29,10 @@ import {
   useMarkChapterUnread,
   useMarkPreviousAsRead,
   useMarkPreviousAsUnread,
+  useUpdateReadingStatus,
 } from "@/features/Library/hooks";
 import { useSession } from "@/shared/contexts/SessionContext";
+import type { ReadingStatus } from "@/core/database";
 
 export function MangaDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -90,6 +97,7 @@ export function MangaDetailScreen() {
   const markChapterRead = useMarkChapterRead();
   const markChapterUnread = useMarkChapterUnread();
   const markPreviousAsRead = useMarkPreviousAsRead();
+  const updateReadingStatus = useUpdateReadingStatus();
 
   // Optimistic state for immediate UI updates
   const [optimisticReadIds, setOptimisticReadIds] = useState<Set<string>>(
@@ -98,6 +106,7 @@ export function MangaDetailScreen() {
   const [optimisticUnreadIds, setOptimisticUnreadIds] = useState<Set<string>>(
     new Set()
   );
+  const [statusSheetVisible, setStatusSheetVisible] = useState(false);
 
   // Combine Realm data with optimistic updates
   const readChapterIds = useMemo(() => {
@@ -266,117 +275,156 @@ export function MangaDetailScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={foreground}
-            colors={[foreground]}
-          />
-        }
-      >
-        {/* Info Section - Centered Layout */}
-        <View className="items-start px-4 mb-6">
-          <View className="flex-row w-full gap-5">
-            {/* Cover Image - Left Side */}
-            <View className="w-[120px] aspect-2/3 rounded-lg bg-surface shadow-md overflow-hidden">
-              {libraryManga?.localCover ? (
-                <Image
-                  source={{ uri: libraryManga.localCover }}
-                  contentFit="cover"
-                  style={{ width: "100%", height: "100%" }}
-                  cachePolicy="memory-disk"
-                />
-              ) : (
-                <WebViewImage
-                  uri={manga.cover}
-                  baseUrl={source?.baseUrl}
-                  resizeMode="cover"
-                  style={{ width: "100%", height: "100%" }}
-                />
-              )}
-            </View>
+    <>
+      <View className="flex-1 bg-background">
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={foreground}
+              colors={[foreground]}
+            />
+          }
+        >
+          {/* Info Section - Centered Layout */}
+          <View className="items-start px-4 mb-6">
+            <View className="flex-row w-full gap-5">
+              {/* Cover Image - Left Side */}
+              <View className="w-[120px] aspect-2/3 rounded-lg bg-surface shadow-md overflow-hidden">
+                {libraryManga?.localCover ? (
+                  <Image
+                    source={{ uri: libraryManga.localCover }}
+                    contentFit="cover"
+                    style={{ width: "100%", height: "100%" }}
+                    cachePolicy="memory-disk"
+                  />
+                ) : (
+                  <WebViewImage
+                    uri={manga.cover}
+                    baseUrl={source?.baseUrl}
+                    resizeMode="cover"
+                    style={{ width: "100%", height: "100%" }}
+                  />
+                )}
+              </View>
 
-            {/* Right Side Info */}
-            <View className="flex-1 pt-1">
-              <Text className="text-foreground text-2xl font-bold leading-tight">
-                {manga.title}
-              </Text>
-              <Text className="text-primary text-sm font-medium mt-1">
-                by {manga.author}
-              </Text>
+              {/* Right Side Info */}
+              <View className="flex-1 pt-1">
+                <Text className="text-foreground text-2xl font-bold leading-tight">
+                  {manga.title}
+                </Text>
+                <Text className="text-primary text-sm font-medium mt-1">
+                  by {manga.author}
+                </Text>
 
-              {/* Genre Chips - Stacked */}
-              <View className="flex-row flex-wrap gap-2 mt-3">
-                {manga.genres?.map((genre) => (
-                  <GenreChip key={genre} genre={genre} />
-                ))}
+                {/* Genre Chips - Stacked */}
+                <View className="flex-row flex-wrap gap-2 mt-3">
+                  {manga.genres?.map((genre) => (
+                    <GenreChip key={genre} genre={genre} />
+                  ))}
+                </View>
               </View>
             </View>
+
+            {/* Description */}
+            <CollapsibleText
+              text={manga.description || ""}
+              numberOfLines={3}
+              className="mt-5"
+            />
+
+            {/* Add to Library Button - Full Width */}
+            <Pressable
+              className={`w-full mt-6 rounded-lg py-3 items-center justify-center shadow-lg active:opacity-90 ${
+                isInLibrary ? "bg-surface border border-primary" : "bg-primary"
+              }`}
+              onPress={handleLibraryToggle}
+            >
+              <View className="flex-row items-center gap-2">
+                <Ionicons
+                  name={isInLibrary ? "checkmark-circle" : "add-circle-outline"}
+                  size={18}
+                  color={isInLibrary ? "#00d9ff" : "#000"}
+                />
+                <Text
+                  className={`font-bold text-xs uppercase tracking-widest ${
+                    isInLibrary ? "text-primary" : "text-black"
+                  }`}
+                >
+                  {isInLibrary ? "In Library" : "Add to Library"}
+                </Text>
+              </View>
+            </Pressable>
+
+            {/* Reading Status Button - Only when in library */}
+            {isInLibrary && (
+              <Pressable
+                className="w-full mt-3 rounded-lg py-3 bg-surface border border-border items-center justify-center active:opacity-90"
+                onPress={() => setStatusSheetVisible(true)}
+              >
+                <View className="flex-row items-center gap-2">
+                  <Ionicons
+                    name="bookmark-outline"
+                    size={18}
+                    color={foreground}
+                  />
+                  <Text className="text-foreground font-medium">
+                    {getStatusLabel(
+                      (libraryManga?.readingStatus as ReadingStatus) ||
+                        "reading"
+                    )}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color={foreground} />
+                </View>
+              </Pressable>
+            )}
           </View>
 
-          {/* Description */}
-          <CollapsibleText
-            text={manga.description || ""}
-            numberOfLines={3}
-            className="mt-5"
-          />
+          {/* Chapter List Header */}
+          <View className="bg-surface/50 px-4 py-3 border-t border-b border-border/50">
+            <Text className="text-foreground font-bold text-sm">
+              {chapters?.length || 0} Chapters
+            </Text>
+          </View>
 
-          {/* Add to Library Button - Full Width */}
-          <Pressable
-            className={`w-full mt-6 rounded-lg py-3 items-center justify-center shadow-lg active:opacity-90 ${
-              isInLibrary ? "bg-surface border border-primary" : "bg-primary"
-            }`}
-            onPress={handleLibraryToggle}
-          >
-            <View className="flex-row items-center gap-2">
-              <Ionicons
-                name={isInLibrary ? "checkmark-circle" : "add-circle-outline"}
-                size={18}
-                color={isInLibrary ? "#00d9ff" : "#000"}
+          {/* Chapters */}
+          <View className="pb-4">
+            {chapters?.map((chapter) => (
+              <ChapterCard
+                key={chapter.id}
+                chapter={chapter}
+                isRead={readChapterIds.has(chapter.id)}
+                onPress={() => handleChapterPress(chapter.id, chapter.url)}
+                onMarkAsRead={() => handleMarkAsRead(chapter.id)}
+                onMarkAsUnread={() => handleMarkAsUnread(chapter.id)}
+                onMarkPreviousAsRead={() =>
+                  handleMarkPreviousAsRead(chapter.number)
+                }
+                onMarkPreviousAsUnread={() =>
+                  handleMarkPreviousAsUnread(chapter.number)
+                }
               />
-              <Text
-                className={`font-bold text-xs uppercase tracking-widest ${
-                  isInLibrary ? "text-primary" : "text-black"
-                }`}
-              >
-                {isInLibrary ? "In Library" : "Add to Library"}
-              </Text>
-            </View>
-          </Pressable>
-        </View>
+            ))}
+          </View>
+        </ScrollView>
+      </View>
 
-        {/* Chapter List Header */}
-        <View className="bg-surface/50 px-4 py-3 border-t border-b border-border/50">
-          <Text className="text-foreground font-bold text-sm">
-            {chapters?.length || 0} Chapters
-          </Text>
-        </View>
-
-        {/* Chapters */}
-        <View className="pb-4">
-          {chapters?.map((chapter) => (
-            <ChapterCard
-              key={chapter.id}
-              chapter={chapter}
-              isRead={readChapterIds.has(chapter.id)}
-              onPress={() => handleChapterPress(chapter.id, chapter.url)}
-              onMarkAsRead={() => handleMarkAsRead(chapter.id)}
-              onMarkAsUnread={() => handleMarkAsUnread(chapter.id)}
-              onMarkPreviousAsRead={() =>
-                handleMarkPreviousAsRead(chapter.number)
-              }
-              onMarkPreviousAsUnread={() =>
-                handleMarkPreviousAsUnread(chapter.number)
-              }
-            />
-          ))}
-        </View>
-      </ScrollView>
-    </View>
+      {/* Reading Status Sheet Modal */}
+      <ReadingStatusSheet
+        visible={statusSheetVisible}
+        currentStatus={
+          (libraryManga?.readingStatus as ReadingStatus) || "reading"
+        }
+        onSelect={(status) => {
+          if (libraryManga) {
+            updateReadingStatus(libraryId, status);
+          }
+        }}
+        onClose={() => setStatusSheetVisible(false)}
+      />
+    </>
   );
 }

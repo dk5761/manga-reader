@@ -14,13 +14,11 @@ export function DatabaseProvider({ children }: DatabaseProviderProps) {
   return (
     <BaseRealmProvider
       schema={realmSchemas}
-      schemaVersion={2}
+      schemaVersion={3}
       onMigration={(oldRealm, newRealm) => {
         // Migration from version 1 to 2: added localCover property
-        // No data migration needed - new property will default to undefined
-        if (oldRealm.schemaVersion < 2) {
-          // Realm handles adding new optional properties automatically
-        }
+        // Migration from version 2 to 3: added ReadingHistorySchema
+        // No data migration needed - new schemas/properties are auto-handled
       }}
     >
       {children}

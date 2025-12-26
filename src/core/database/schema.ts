@@ -98,8 +98,52 @@ export class MangaSchema extends Realm.Object<MangaSchema> {
   };
 }
 
+/**
+ * Reading History - standalone collection for tracking reading sessions
+ * Not embedded, has its own primary key
+ */
+export class ReadingHistorySchema extends Realm.Object<ReadingHistorySchema> {
+  id!: string;
+  mangaId!: string;
+  mangaTitle!: string;
+  mangaCover?: string;
+  chapterId!: string;
+  chapterNumber!: number;
+  chapterTitle?: string;
+  chapterUrl!: string;
+  pageReached!: number;
+  totalPages?: number;
+  timestamp!: number;
+  sourceId!: string;
+
+  static primaryKey = "id";
+  static schema: ObjectSchema = {
+    name: "ReadingHistory",
+    primaryKey: "id",
+    properties: {
+      id: "string",
+      mangaId: "string",
+      mangaTitle: "string",
+      mangaCover: "string?",
+      chapterId: "string",
+      chapterNumber: "double",
+      chapterTitle: "string?",
+      chapterUrl: "string",
+      pageReached: "int",
+      totalPages: "int?",
+      timestamp: "int",
+      sourceId: "string",
+    },
+  };
+}
+
 // Export all schemas for RealmProvider
-export const realmSchemas = [MangaSchema, ChapterSchema, ReadingProgressSchema];
+export const realmSchemas = [
+  MangaSchema,
+  ChapterSchema,
+  ReadingProgressSchema,
+  ReadingHistorySchema,
+];
 
 // Types for use in the app
 export type ReadingStatus =

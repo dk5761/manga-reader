@@ -19,3 +19,11 @@ export {
 } from "./useReadingProgress";
 
 export { useSyncLibrary } from "./useSyncLibrary";
+
+export {
+  useAddHistoryEntry,
+  useReadingHistory,
+  useGroupedHistory,
+  useRemoveHistoryEntry,
+  useClearHistory,
+} from "./useReadingHistory";

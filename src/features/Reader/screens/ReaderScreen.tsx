@@ -20,7 +20,12 @@ import { WebtoonReader, WebtoonReaderHandle } from "../components";
 import { useChapterPages } from "../api/reader.queries";
 import { getSource } from "@/sources";
 import { useChapterList } from "../../Manga/api/manga.queries";
-import { useMarkChapterRead } from "@/features/Library/hooks";
+import {
+  useMarkChapterRead,
+  useSaveProgress,
+  useAddHistoryEntry,
+  useLibraryMangaById,
+} from "@/features/Library/hooks";
 
 export function ReaderScreen() {
   const insets = useSafeAreaInsets();
@@ -47,18 +52,30 @@ export function ReaderScreen() {
   const controlsVisible = useSharedValue(1);
   const scrollY = useSharedValue(0);
   const scrollViewRef = useRef<WebtoonReaderHandle>(null);
+  const lastSavedPage = useRef(0);
+  const historyLogged = useRef(false);
 
-  // Mark chapter as read hook
+  // Library and progress hooks
   const markChapterRead = useMarkChapterRead();
+  const saveProgress = useSaveProgress();
+  const addHistoryEntry = useAddHistoryEntry();
 
   // Get manga ID for library lookup (format: sourceId_mangaId)
   // Extract manga ID from mangaUrl
-  const getMangaIdFromUrl = (url: string): string => {
+  const getMangaIdFromUrl = (mangaUrlStr: string): string => {
     // Extract the slug from URL like /manga/slug or /series/slug/
-    const parts = url.split("/").filter(Boolean);
+    const parts = mangaUrlStr.split("/").filter(Boolean);
     return parts[parts.length - 1] || parts[parts.length - 2] || "";
   };
   const mangaId = `${sourceId}_${getMangaIdFromUrl(mangaUrl || "")}`;
+
+  // Get library data for resume functionality
+  const libraryManga = useLibraryMangaById(mangaId);
+  const savedChapter = libraryManga?.chapters.find((c) => c.id === chapterId);
+  const initialPage = savedChapter?.lastPageRead || 1;
+
+  // Get current chapter info
+  const currentChapter = chapters?.find((ch) => ch.url === url);
 
   // Find current chapter index and determine prev/next
   const currentChapterIndex = chapters?.findIndex((ch) => ch.url === url) ?? -1;
@@ -174,26 +191,54 @@ export function ReaderScreen() {
         baseUrl={source?.baseUrl}
         onPageChange={(page) => {
           setCurrentPage(page);
-          // Auto-mark chapter as read when reaching last page
           const totalPages = pages?.length || 0;
+          const chapterNumber = currentChapter?.number || 0;
 
-          // Log every page change for debugging
-          console.log("[Reader] Page changed:", {
-            currentPage: page,
-            totalPages,
-            markedAsRead,
-            isLastPage: page >= totalPages,
-          });
+          // Log history on first page view
+          if (!historyLogged.current && libraryManga && currentChapter) {
+            historyLogged.current = true;
+            addHistoryEntry({
+              mangaId,
+              mangaTitle: libraryManga.title,
+              mangaCover: libraryManga.localCover || libraryManga.cover,
+              chapterId: chapterId || "",
+              chapterNumber,
+              chapterTitle: currentChapter.title,
+              chapterUrl: url || "",
+              pageReached: page,
+              totalPages,
+              sourceId: sourceId || "",
+            });
+          }
 
+          // Auto-save progress every 3 pages or at key positions
+          const shouldSave =
+            Math.abs(page - lastSavedPage.current) >= 3 ||
+            page === 1 ||
+            page === totalPages;
+
+          if (shouldSave && libraryManga) {
+            saveProgress(mangaId, chapterId || "", chapterNumber, page);
+            lastSavedPage.current = page;
+
+            // Update history entry with current progress
+            addHistoryEntry({
+              mangaId,
+              mangaTitle: libraryManga.title,
+              mangaCover: libraryManga.localCover || libraryManga.cover,
+              chapterId: chapterId || "",
+              chapterNumber,
+              chapterTitle: currentChapter?.title,
+              chapterUrl: url || "",
+              pageReached: page,
+              totalPages,
+              sourceId: sourceId || "",
+            });
+          }
+
+          // Mark as read when reaching last page
           if (page >= totalPages && totalPages > 0 && !markedAsRead) {
             setMarkedAsRead(true);
-            // Log for debugging
-            console.log("[Reader] Marking chapter as read:", {
-              mangaId,
-              chapterId,
-              totalPages,
-              pageReached: page,
-            });
             markChapterRead(mangaId, chapterId || "", totalPages);
           }
         }}
