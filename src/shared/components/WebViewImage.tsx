@@ -178,6 +178,7 @@ function WebViewImageComponent({
         styles.container,
         containerHeight ? { height: containerHeight } : {},
       ]}
+      pointerEvents="none"
     >
       <WebView
         key={currentUri} // Force re-render on URI change

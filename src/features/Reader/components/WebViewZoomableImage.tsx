@@ -8,6 +8,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { WebViewImage } from "@/shared/components";
+import { useReaderStore } from "../store/useReaderStore";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -16,7 +17,7 @@ type WebViewZoomableImageProps = {
   baseUrl?: string;
   width?: number;
   minHeight?: number;
-  onTap?: () => void;
+  onTap?: () => void; // Keep for backwards compatibility
   onHeightChange?: (height: number) => void;
 };
 
@@ -116,20 +117,27 @@ function WebViewZoomableImageComponent({
       }
     });
 
-  // Single tap for controls toggle
+  // Single tap for controls toggle - uses store directly
+  const handleTap = useCallback(() => {
+    // Use store if available, fallback to onTap prop
+    try {
+      useReaderStore.getState().toggleControls();
+    } catch {
+      onTap?.();
+    }
+  }, [onTap]);
+
   const singleTapGesture = Gesture.Tap()
     .numberOfTaps(1)
+    .maxDuration(250)
     .onEnd(() => {
-      if (onTap) {
-        runOnJS(onTap)();
-      }
+      runOnJS(handleTap)();
     });
 
-  const composedGesture = Gesture.Race(
-    doubleTapGesture,
-    Gesture.Simultaneous(pinchGesture, panGesture),
-    singleTapGesture
-  );
+  // Compose gestures: Exclusive for taps (double takes priority), Simultaneous for pinch+pan
+  const tapGestures = Gesture.Exclusive(doubleTapGesture, singleTapGesture);
+  const zoomPanGesture = Gesture.Simultaneous(pinchGesture, panGesture);
+  const composedGesture = Gesture.Race(tapGestures, zoomPanGesture);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [

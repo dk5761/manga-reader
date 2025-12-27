@@ -4,6 +4,7 @@ import {
   forwardRef,
   useImperativeHandle,
   useState,
+  useEffect,
 } from "react";
 import {
   Dimensions,
@@ -48,8 +49,43 @@ export const WebtoonReader = forwardRef<
   ref
 ) {
   const flashListRef = useRef<any>(null);
-  const lastReportedPage = useRef(1);
+  const lastReportedPage = useRef(initialPage);
   const [contentHeight, setContentHeight] = useState(0);
+  const hasScrolledToInitial = useRef(false);
+  // Store the initial page value at mount time - don't update it from saves
+  const initialPageAtMount = useRef(initialPage);
+
+  // Update initial page ref only if it was 1 (not loaded yet) and now has a value
+  useEffect(() => {
+    if (initialPageAtMount.current === 1 && initialPage > 1) {
+      initialPageAtMount.current = initialPage;
+    }
+  }, [initialPage]);
+
+  // Scroll to initial page once after content loads
+  useEffect(() => {
+    if (
+      initialPageAtMount.current > 1 &&
+      contentHeight > 0 &&
+      pages.length > 0 &&
+      !hasScrolledToInitial.current
+    ) {
+      hasScrolledToInitial.current = true;
+      console.log(
+        "[WebtoonReader] Scrolling to saved page:",
+        initialPageAtMount.current
+      );
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          flashListRef.current?.scrollToIndex({
+            index: initialPageAtMount.current - 1,
+            animated: false,
+            viewPosition: 0,
+          });
+        }, 50);
+      });
+    }
+  }, [contentHeight, pages.length]);
 
   // Store onPageChange in a ref so the scroll callback can access it
   const onPageChangeRef = useRef(onPageChange);
