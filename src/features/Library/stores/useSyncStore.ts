@@ -18,6 +18,8 @@ export type SyncResult = {
 
 type SyncState = {
   isSyncing: boolean;
+  isWarmingUp: boolean;
+  warmingSource: string | null;
   progress: { current: number; total: number };
   currentSource: string | null;
   currentManga: string | null;
@@ -27,6 +29,7 @@ type SyncState = {
 
 type SyncActions = {
   startSync: (total: number) => void;
+  setWarmingUp: (isWarming: boolean, source?: string) => void;
   updateProgress: (current: number, source: string, manga: string) => void;
   completeSync: (result: SyncResult) => void;
   clearHistory: () => void;
@@ -36,6 +39,8 @@ type SyncStore = SyncState & SyncActions;
 
 const initialState: SyncState = {
   isSyncing: false,
+  isWarmingUp: false,
+  warmingSource: null,
   progress: { current: 0, total: 0 },
   currentSource: null,
   currentManga: null,
@@ -51,9 +56,18 @@ export const useSyncStore = create<SyncStore>()(
       startSync: (total: number) => {
         set({
           isSyncing: true,
+          isWarmingUp: false,
+          warmingSource: null,
           progress: { current: 0, total },
           currentSource: null,
           currentManga: null,
+        });
+      },
+
+      setWarmingUp: (isWarming: boolean, source?: string) => {
+        set({
+          isWarmingUp: isWarming,
+          warmingSource: source || null,
         });
       },
 

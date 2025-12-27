@@ -12,8 +12,9 @@ import { useSyncStore, SyncResult, SyncFailure } from "../stores/useSyncStore";
 export function useSyncLibrary() {
   const realm = useRealm();
   const allManga = useQuery(MangaSchema);
-  const { isSessionReady } = useSession();
-  const { isSyncing, startSync, updateProgress, completeSync } = useSyncStore();
+  const { isSessionReady, warmupSession } = useSession();
+  const { isSyncing, startSync, setWarmingUp, updateProgress, completeSync } =
+    useSyncStore();
 
   const syncLibrary = useCallback(async () => {
     if (isSyncing) return;
@@ -61,12 +62,33 @@ export function useSyncLibrary() {
         continue;
       }
 
-      // Check CF session for sources that need it
+      // Warmup CF session if needed
       if (source.needsCloudflareBypass && !isSessionReady(source.baseUrl)) {
-        console.log("[Sync] Skipping", source.name, "- session not ready");
-        result.skippedSources.push(source.name);
-        processedCount += sourceManga.length;
-        continue;
+        console.log("[Sync] Warming up session for", source.name);
+        setWarmingUp(true, source.name);
+        warmupSession(source.baseUrl, true);
+
+        // Wait for session to be ready (poll every 500ms, max 30s)
+        const maxWait = 30000;
+        const startTime = Date.now();
+        while (
+          !isSessionReady(source.baseUrl) &&
+          Date.now() - startTime < maxWait
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+
+        setWarmingUp(false);
+
+        // If still not ready after timeout, skip
+        if (!isSessionReady(source.baseUrl)) {
+          console.log("[Sync] Warmup timeout for", source.name);
+          result.skippedSources.push(source.name);
+          processedCount += sourceManga.length;
+          continue;
+        }
+
+        console.log("[Sync] Session ready for", source.name);
       }
 
       // Sync each manga in this source

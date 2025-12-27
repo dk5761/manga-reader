@@ -7,7 +7,14 @@ import { View, Text } from "react-native";
 import { useSyncStore } from "../stores/useSyncStore";
 
 export function SyncProgressBanner() {
-  const { isSyncing, progress, currentSource, currentManga } = useSyncStore();
+  const {
+    isSyncing,
+    isWarmingUp,
+    warmingSource,
+    progress,
+    currentSource,
+    currentManga,
+  } = useSyncStore();
 
   if (!isSyncing) return null;
 
@@ -29,15 +36,25 @@ export function SyncProgressBanner() {
         <View className="flex-row justify-between items-center">
           <View className="flex-row items-center gap-2">
             <Text className="text-primary text-sm font-semibold">
-              🔄 Updating library...
+              {isWarmingUp
+                ? "🔐 Warming up session..."
+                : "🔄 Updating library..."}
             </Text>
           </View>
-          <Text className="text-primary/80 text-sm font-medium">
-            {progress.current}/{progress.total}
-          </Text>
+          {!isWarmingUp && (
+            <Text className="text-primary/80 text-sm font-medium">
+              {progress.current}/{progress.total}
+            </Text>
+          )}
         </View>
 
-        {currentManga && (
+        {isWarmingUp && warmingSource && (
+          <Text className="text-muted text-xs mt-1">
+            Establishing connection to {warmingSource}
+          </Text>
+        )}
+
+        {!isWarmingUp && currentManga && (
           <Text className="text-muted text-xs mt-1" numberOfLines={1}>
             {currentSource}: {currentManga}
           </Text>
