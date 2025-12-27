@@ -4,6 +4,7 @@ import { MangaSchema, ChapterSchema } from "@/core/database";
 import { getSource } from "@/sources";
 import { useSession } from "@/shared/contexts/SessionContext";
 import { useSyncStore, SyncResult, SyncFailure } from "../stores/useSyncStore";
+import { sendSyncCompletionNotification } from "@/shared/services/notifications";
 
 /**
  * Hook to sync all library manga and check for new chapters
@@ -144,6 +145,13 @@ export function useSyncLibrary() {
 
     completeSync(result);
     console.log("[Sync] Complete:", result);
+
+    // Send local notification
+    try {
+      await sendSyncCompletionNotification(result);
+    } catch (e) {
+      console.warn("[Sync] Failed to send notification:", e);
+    }
 
     return result;
   }, [
