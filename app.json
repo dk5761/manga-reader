@@ -13,7 +13,15 @@
       "package": "com.drshnk.mangareader"
     },
     "ios": {
-      "bundleIdentifier": "com.drshnk.mangareader"
+      "bundleIdentifier": "com.drshnk.mangareader",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "20f97605-b540-423f-8b73-e990ee02f371"
+      }
     }
   }
 }
