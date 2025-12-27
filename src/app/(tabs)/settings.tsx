@@ -263,7 +263,7 @@ export default function SettingsScreen() {
             icon="bug-outline"
             title="Debug Realm Database"
             subtitle="View all stored manga and chapters"
-            onPress={() => router.push("/(tabs)/debug")}
+            onPress={() => router.push("/debug")}
           />
         </View>
       </ScrollView>
