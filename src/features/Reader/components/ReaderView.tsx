@@ -72,13 +72,8 @@ export const ReaderView = memo(function ReaderView({
         });
       }
 
-      // Auto-save progress every 3 pages or at key positions
-      const shouldSave =
-        Math.abs(page - lastSavedPage.current) >= 3 ||
-        page === 1 ||
-        page === totalPages;
-
-      if (shouldSave && libraryManga) {
+      // Save progress on every page change
+      if (libraryManga && page !== lastSavedPage.current) {
         saveProgress(mangaId, chapterId, chapterNumber, page);
         lastSavedPage.current = page;
 

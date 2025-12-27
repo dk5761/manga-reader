@@ -51,41 +51,53 @@ export const WebtoonReader = forwardRef<
   const flashListRef = useRef<any>(null);
   const lastReportedPage = useRef(initialPage);
   const [contentHeight, setContentHeight] = useState(0);
-  const hasScrolledToInitial = useRef(false);
-  // Store the initial page value at mount time - don't update it from saves
+  const [isLayoutReady, setIsLayoutReady] = useState(false);
+  const scrollAttempts = useRef(0);
   const initialPageAtMount = useRef(initialPage);
 
-  // Update initial page ref only if it was 1 (not loaded yet) and now has a value
-  useEffect(() => {
-    if (initialPageAtMount.current === 1 && initialPage > 1) {
-      initialPageAtMount.current = initialPage;
-    }
-  }, [initialPage]);
-
-  // Scroll to initial page once after content loads
+  // Scroll to initial page with retry logic
   useEffect(() => {
     if (
       initialPageAtMount.current > 1 &&
-      contentHeight > 0 &&
+      isLayoutReady &&
       pages.length > 0 &&
-      !hasScrolledToInitial.current
+      scrollAttempts.current < 5
     ) {
-      hasScrolledToInitial.current = true;
-      console.log(
-        "[WebtoonReader] Scrolling to saved page:",
-        initialPageAtMount.current
-      );
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          flashListRef.current?.scrollToIndex({
-            index: initialPageAtMount.current - 1,
-            animated: false,
-            viewPosition: 0,
-          });
-        }, 50);
-      });
+      const attemptScroll = () => {
+        scrollAttempts.current += 1;
+        console.log(
+          "[WebtoonReader] Scroll attempt",
+          scrollAttempts.current,
+          "to page:",
+          initialPageAtMount.current
+        );
+
+        flashListRef.current?.scrollToIndex({
+          index: initialPageAtMount.current - 1,
+          animated: false,
+          viewPosition: 0,
+        });
+      };
+
+      // Multiple attempts with increasing delays to catch content loading
+      attemptScroll();
+      const timer1 = setTimeout(attemptScroll, 100);
+      const timer2 = setTimeout(attemptScroll, 300);
+      const timer3 = setTimeout(attemptScroll, 500);
+
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+        clearTimeout(timer3);
+      };
     }
-  }, [contentHeight, pages.length]);
+  }, [isLayoutReady, pages.length]);
+
+  const handleLayout = useCallback(() => {
+    if (!isLayoutReady) {
+      setIsLayoutReady(true);
+    }
+  }, [isLayoutReady]);
 
   // Store onPageChange in a ref so the scroll callback can access it
   const onPageChangeRef = useRef(onPageChange);
@@ -197,6 +209,7 @@ export const WebtoonReader = forwardRef<
       onScroll={handleScroll}
       scrollEventThrottle={16}
       onContentSizeChange={handleContentSizeChange}
+      onLayout={handleLayout}
       contentContainerStyle={{ paddingBottom }}
       decelerationRate="fast"
       drawDistance={SCREEN_WIDTH * 2}

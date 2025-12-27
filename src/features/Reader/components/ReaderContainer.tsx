@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View, Text, ActivityIndicator, Pressable } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useChapterPages } from "../api/reader.queries";
@@ -41,7 +41,34 @@ export function ReaderContainer() {
 
   const libraryManga = useLibraryMangaById(mangaId);
 
-  // Calculate derived values
+  // Wait for library data to stabilize (Realm query may take a moment)
+  const [libraryChecked, setLibraryChecked] = useState(false);
+  const libraryCheckTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    // Wait 100ms for Realm to return data, then mark as checked
+    libraryCheckTimeout.current = setTimeout(() => {
+      setLibraryChecked(true);
+    }, 100);
+
+    return () => {
+      if (libraryCheckTimeout.current) {
+        clearTimeout(libraryCheckTimeout.current);
+      }
+    };
+  }, []);
+
+  // If libraryManga becomes available, mark as checked immediately
+  useEffect(() => {
+    if (libraryManga) {
+      setLibraryChecked(true);
+      if (libraryCheckTimeout.current) {
+        clearTimeout(libraryCheckTimeout.current);
+      }
+    }
+  }, [libraryManga]);
+
+  // Calculate derived values - only after library is checked
   const savedChapter = libraryManga?.chapters.find((c) => c.id === chapterId);
   const initialPage = savedChapter?.lastPageRead || 1;
   const currentChapter = chapters?.find((ch) => ch.url === url);
@@ -53,13 +80,18 @@ export function ReaderContainer() {
   const isInitialized = useReaderStore((s) => s.isInitialized);
   const hasInitializedRef = useRef(false);
 
-  // Check if all required data is ready
-  const isDataReady = !pagesLoading && pages && pages.length > 0;
+  // Check if all required data is ready (pages + library check)
+  const isDataReady =
+    !pagesLoading && pages && pages.length > 0 && libraryChecked;
 
-  // Initialize store once when data is ready
+  // Initialize store once when ALL data is ready
   useEffect(() => {
     if (isDataReady && !hasInitializedRef.current) {
       hasInitializedRef.current = true;
+      console.log(
+        "[ReaderContainer] Initializing store with page:",
+        initialPage
+      );
       initialize({
         initialPage,
         totalPages: pages.length,
