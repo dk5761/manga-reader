@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { View } from "react-native";
 import { useRouter } from "expo-router";
-import { LibraryFilter, LibraryGrid } from "../components";
+import { LibraryFilter, LibraryGrid, SyncProgressBanner } from "../components";
 import { EmptyState } from "@/shared/components";
 import { LIBRARY_FILTERS } from "../data/mockData";
 import { useLibraryStore } from "../stores/useLibraryStore";
@@ -98,6 +98,7 @@ export function LibraryScreen() {
               activeFilter={activeCategory}
               onFilterChange={setActiveCategory}
             />
+            <SyncProgressBanner />
           </View>
         }
       />

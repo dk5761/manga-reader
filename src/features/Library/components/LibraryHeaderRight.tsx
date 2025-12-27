@@ -47,12 +47,17 @@ export function LibraryHeaderRight() {
         onPress={handleSync}
         disabled={isSyncing}
         hitSlop={8}
-        className="p-2"
+        className="p-2 relative"
         style={{ opacity: isSyncing ? 0.7 : 1 }}
       >
         <Animated.View style={{ transform: [{ rotate: spin }] }}>
           <Ionicons name="sync-outline" size={22} color={color} />
         </Animated.View>
+
+        {/* Sync active badge */}
+        {isSyncing && (
+          <View className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-primary rounded-full border-2 border-background" />
+        )}
       </Pressable>
     </View>
   );
