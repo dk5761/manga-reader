@@ -2,6 +2,7 @@ import { useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { Dimensions } from "react-native";
 import { LegendList } from "@legendapp/list";
 import { WebViewZoomableImage } from "./WebViewZoomableImage";
+import { useReaderStore } from "../store/useReaderStore";
 import type { Page } from "@/sources";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -51,6 +52,11 @@ export const WebtoonReader = forwardRef<
   // Simple scroll handler for page tracking
   const handleScroll = useCallback(
     (event: any) => {
+      // Skip if slider is being dragged (prevents jitter during programmatic scroll)
+      if (useReaderStore.getState().isSliderDragging) {
+        return;
+      }
+
       const offsetY = event.nativeEvent.contentOffset.y;
       const layoutHeight = event.nativeEvent.layoutMeasurement.height;
       const contentHeight = event.nativeEvent.contentSize.height;

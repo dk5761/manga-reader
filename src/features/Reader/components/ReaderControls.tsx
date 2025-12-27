@@ -87,6 +87,10 @@ export const ReaderControls = memo(function ReaderControls({
     ],
   }));
 
+  const handleSliderStart = useCallback(() => {
+    useReaderStore.getState().setSliderDragging(true);
+  }, []);
+
   const handleSliderChange = useCallback((value: number) => {
     useReaderStore.getState().setPage(Math.round(value));
   }, []);
@@ -95,6 +99,10 @@ export const ReaderControls = memo(function ReaderControls({
     (value: number) => {
       const targetPage = Math.round(value);
       onScrollToPage(targetPage);
+      // Clear dragging flag after scroll animation settles
+      setTimeout(() => {
+        useReaderStore.getState().setSliderDragging(false);
+      }, 500);
     },
     [onScrollToPage]
   );
@@ -175,6 +183,7 @@ export const ReaderControls = memo(function ReaderControls({
                 maximumValue={totalPages}
                 step={1}
                 value={currentPage}
+                onSlidingStart={handleSliderStart}
                 onValueChange={handleSliderChange}
                 onSlidingComplete={handleSliderComplete}
                 minimumTrackTintColor="#00d9ff"

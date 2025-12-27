@@ -8,6 +8,7 @@ export interface ReaderState {
 
   // UI state
   isControlsVisible: boolean;
+  isSliderDragging: boolean; // Prevents scroll from updating slider during drag
 
   // Metadata (set once on init)
   mangaId: string;
@@ -25,6 +26,7 @@ export interface ReaderActions {
   setPage: (page: number) => void;
   toggleControls: () => void;
   setMarkedAsRead: () => void;
+  setSliderDragging: (value: boolean) => void;
   initialize: (data: InitData) => void;
   reset: () => void;
 }
@@ -43,6 +45,7 @@ const initialState: ReaderState = {
   totalPages: 0,
   initialPage: 1,
   isControlsVisible: true,
+  isSliderDragging: false,
   mangaId: "",
   chapterId: "",
   chapterNumber: 0,
@@ -60,6 +63,8 @@ export const useReaderStore = create<ReaderState & ReaderActions>((set) => ({
     set((state) => ({ isControlsVisible: !state.isControlsVisible })),
 
   setMarkedAsRead: () => set({ markedAsRead: true }),
+
+  setSliderDragging: (value) => set({ isSliderDragging: value }),
 
   initialize: (data) =>
     set({
