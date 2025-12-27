@@ -29,10 +29,11 @@ import type { ReadingStatus } from "@/core/database";
 export function MangaDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { id, sourceId, url } = useLocalSearchParams<{
+  const { id, sourceId, url, preloaded } = useLocalSearchParams<{
     id: string;
     sourceId: string;
     url: string;
+    preloaded?: string;
   }>();
 
   // Theme colors
@@ -57,7 +58,12 @@ export function MangaDetailScreen() {
     error,
     refetch,
     libraryId,
-  } = useMangaData({ id: id || "", sourceId: sourceId || "", url: url || "" });
+  } = useMangaData({
+    id: id || "",
+    sourceId: sourceId || "",
+    url: url || "",
+    preloaded,
+  });
 
   // Refresh handler
   const onRefresh = useCallback(async () => {

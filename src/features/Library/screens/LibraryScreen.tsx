@@ -61,12 +61,25 @@ export function LibraryScreen() {
   const handleMangaPress = (id: string) => {
     const manga = libraryManga.find((m) => m.id === id);
     if (manga) {
+      // Serialize minimal data for instant render on destination screen
+      const preloadedData = {
+        title: manga.title,
+        cover: manga.cover,
+        localCover: manga.localCover,
+        author: manga.author,
+        description: manga.description,
+        genres: [...manga.genres],
+        chapterCount: manga.chapters.length,
+        readingStatus: manga.readingStatus,
+      };
+
       router.push({
         pathname: "/manga/[id]",
         params: {
           id: manga.id.replace(`${manga.sourceId}_`, ""),
           sourceId: manga.sourceId,
           url: manga.url,
+          preloaded: JSON.stringify(preloadedData),
         },
       });
     }

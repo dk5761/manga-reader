@@ -3,17 +3,29 @@
  * Handles session warmup, fetching from source, and local data fallback
  */
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { useSession } from "@/shared/contexts/SessionContext";
 import { useMangaDetails, useChapterList } from "../api/manga.queries";
 import { useLibraryMangaById } from "@/features/Library/hooks";
 import { getSource } from "@/sources";
 import type { MangaDetails, Chapter } from "@/sources";
 
+export type PreloadedManga = {
+  title: string;
+  cover?: string;
+  localCover?: string;
+  author?: string;
+  description?: string;
+  genres: string[];
+  chapterCount: number;
+  readingStatus?: string;
+};
+
 export type MangaDataParams = {
   id: string;
   sourceId: string;
   url: string;
+  preloaded?: string; // JSON stringified PreloadedManga
 };
 
 export type DisplayManga = {
@@ -35,8 +47,13 @@ export type DisplayChapter = {
 };
 
 export function useMangaData(params: MangaDataParams) {
-  const { id, sourceId, url } = params;
+  const { id, sourceId, url, preloaded } = params;
   const libraryId = `${sourceId}_${id}`;
+
+  // Parse preloaded data (passed from LibraryScreen for instant render)
+  const preloadedData: PreloadedManga | null = preloaded
+    ? JSON.parse(preloaded)
+    : null;
 
   // Get source config
   const source = getSource(sourceId);
@@ -53,34 +70,51 @@ export function useMangaData(params: MangaDataParams) {
     libraryManga?.title && (libraryManga?.chapters?.length ?? 0) > 0;
   const hasLocalData = !!libraryManga && isLocalDataValid;
 
-  // Only warmup if no local data (optimization)
+  // Has ANY instant data (preloaded OR local)
+  const hasInstantData = !!preloadedData || hasLocalData;
+
+  // Defer heavy operations for library manga (instant navigation)
+  const [shouldFetch, setShouldFetch] = useState(!hasInstantData);
+
   useEffect(() => {
-    if (!hasLocalData && source?.needsCloudflareBypass && source?.baseUrl) {
+    if (hasInstantData && !shouldFetch) {
+      // Defer fetching until after navigation animation completes
+      const timeout = setTimeout(() => {
+        setShouldFetch(true);
+      }, 500); // Allow 500ms for screen to render
+      return () => clearTimeout(timeout);
+    }
+  }, [hasInstantData, shouldFetch]);
+
+  // Only warmup if we're ready to fetch
+  useEffect(() => {
+    if (shouldFetch && source?.needsCloudflareBypass && source?.baseUrl) {
       warmupSession(source.baseUrl, true);
     }
   }, [
-    hasLocalData,
+    shouldFetch,
     source?.baseUrl,
     source?.needsCloudflareBypass,
     warmupSession,
   ]);
 
-  // Fetch from source (only when session is ready)
+  // Fetch from source (only when session is ready AND we should fetch)
+  const fetchEnabled = shouldFetch && sessionReady;
   const {
     data: manga,
     isLoading: isMangaLoading,
     error: mangaError,
     refetch: refetchManga,
-  } = useMangaDetails(sourceId, url, sessionReady);
+  } = useMangaDetails(sourceId, url, fetchEnabled);
 
   const {
     data: chapters,
     isLoading: isChaptersLoading,
     error: chaptersError,
     refetch: refetchChapters,
-  } = useChapterList(sourceId, url, sessionReady);
+  } = useChapterList(sourceId, url, fetchEnabled);
 
-  // Build display data (fresh data takes priority over local)
+  // Build display data: preloaded -> fresh -> local (priority order)
   const displayManga: DisplayManga | null = manga
     ? {
         title: manga.title,
@@ -89,6 +123,15 @@ export function useMangaData(params: MangaDataParams) {
         description: manga.description,
         genres: manga.genres || [],
         url: manga.url,
+      }
+    : preloadedData
+    ? {
+        title: preloadedData.title,
+        cover: preloadedData.localCover || preloadedData.cover || "",
+        author: preloadedData.author || "Unknown",
+        description: preloadedData.description,
+        genres: preloadedData.genres || [],
+        url: url || "",
       }
     : hasLocalData
     ? {
