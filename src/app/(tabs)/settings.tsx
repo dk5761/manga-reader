@@ -1,28 +1,49 @@
-import { View, Text, Pressable, ScrollView } from "react-native";
+import { useState } from "react";
+import {
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useCSSVariable } from "uniwind";
 import { useSyncStore } from "@/features/Library/stores/useSyncStore";
+import { useBackup } from "@/core/backup";
 
 type SettingItemProps = {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   subtitle?: string;
   onPress: () => void;
+  loading?: boolean;
 };
 
-function SettingItem({ icon, title, subtitle, onPress }: SettingItemProps) {
+function SettingItem({
+  icon,
+  title,
+  subtitle,
+  onPress,
+  loading,
+}: SettingItemProps) {
   const mutedColor = useCSSVariable("--color-muted");
   const muted = typeof mutedColor === "string" ? mutedColor : "#71717a";
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={loading ? undefined : onPress}
       className="flex-row items-center px-4 py-4 active:bg-surface/50"
+      style={{ opacity: loading ? 0.6 : 1 }}
     >
       <View className="w-10 h-10 bg-surface rounded-lg items-center justify-center mr-3">
-        <Ionicons name={icon} size={20} color={muted} />
+        {loading ? (
+          <ActivityIndicator size="small" color={muted} />
+        ) : (
+          <Ionicons name={icon} size={20} color={muted} />
+        )}
       </View>
       <View className="flex-1">
         <Text className="text-foreground font-medium">{title}</Text>
@@ -46,6 +67,76 @@ function formatTimeAgo(timestamp: number): string {
   if (minutes < 60) return `${minutes} min ago`;
   if (hours < 24) return `${hours} hour${hours > 1 ? "s" : ""} ago`;
   return `${days} day${days > 1 ? "s" : ""} ago`;
+}
+
+function BackupSection() {
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const { exportBackup, importBackup } = useBackup();
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const success = await exportBackup();
+      if (!success) {
+        Alert.alert("Export Failed", "Unable to export backup file.");
+      }
+    } catch (e) {
+      Alert.alert("Error", (e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImport = async () => {
+    Alert.alert(
+      "Restore Backup",
+      "This will merge the backup with your existing library. Existing manga will be updated, new ones will be added.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          onPress: async () => {
+            setImporting(true);
+            try {
+              const result = await importBackup();
+              if (result.success && result.imported) {
+                Alert.alert(
+                  "Import Complete",
+                  `Imported ${result.imported.manga} manga and ${result.imported.history} history entries.`
+                );
+              } else if (result.error && result.error !== "Cancelled") {
+                Alert.alert("Import Failed", result.error);
+              }
+            } catch (e) {
+              Alert.alert("Error", (e as Error).message);
+            } finally {
+              setImporting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  return (
+    <View>
+      <SettingItem
+        icon="cloud-upload-outline"
+        title="Create Backup"
+        subtitle="Export library to JSON file"
+        onPress={handleExport}
+        loading={exporting}
+      />
+      <SettingItem
+        icon="cloud-download-outline"
+        title="Restore Backup"
+        subtitle="Import from backup file"
+        onPress={handleImport}
+        loading={importing}
+      />
+    </View>
+  );
 }
 
 function SyncHistorySection() {
@@ -147,6 +238,14 @@ export default function SettingsScreen() {
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
       >
+        {/* Backup & Restore Section */}
+        <View className="mt-4">
+          <Text className="text-muted text-xs font-bold uppercase px-4 mb-2">
+            Backup & Restore
+          </Text>
+          <BackupSection />
+        </View>
+
         {/* Sync History Section */}
         <View className="mt-4">
           <Text className="text-muted text-xs font-bold uppercase px-4 mb-2">
