@@ -159,7 +159,7 @@ export function useMangaData(params: MangaDataParams) {
       title: ch.title || "",
       number: ch.number,
       url: ch.url,
-      date: undefined,
+      date: ch.date,
     })) ||
     [];
 
