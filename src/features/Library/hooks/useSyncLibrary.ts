@@ -12,7 +12,7 @@ import { useSyncStore, SyncResult, SyncFailure } from "../stores/useSyncStore";
 export function useSyncLibrary() {
   const realm = useRealm();
   const allManga = useQuery(MangaSchema);
-  const { isSessionReady, warmupSession } = useSession();
+  const { isSessionReady, warmupSession, waitForSession } = useSession();
   const { isSyncing, startSync, setWarmingUp, updateProgress, completeSync } =
     useSyncStore();
 
@@ -68,20 +68,13 @@ export function useSyncLibrary() {
         setWarmingUp(true, source.name);
         warmupSession(source.baseUrl, true);
 
-        // Wait for session to be ready (poll every 500ms, max 30s)
-        const maxWait = 30000;
-        const startTime = Date.now();
-        while (
-          !isSessionReady(source.baseUrl) &&
-          Date.now() - startTime < maxWait
-        ) {
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
+        // Wait for session to be ready (30s timeout)
+        const isReady = await waitForSession(source.baseUrl, 30000);
 
         setWarmingUp(false);
 
         // If still not ready after timeout, skip
-        if (!isSessionReady(source.baseUrl)) {
+        if (!isReady) {
           console.log("[Sync] Warmup timeout for", source.name);
           result.skippedSources.push(source.name);
           processedCount += sourceManga.length;
