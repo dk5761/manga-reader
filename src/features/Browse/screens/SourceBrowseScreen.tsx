@@ -184,7 +184,7 @@ export function SourceBrowseScreen() {
       ) : (
         <FlatList
           data={mangaList}
-          numColumns={3}
+          numColumns={2}
           contentContainerStyle={{
             paddingHorizontal: 16,
             paddingBottom: insets.bottom + 100,
@@ -193,7 +193,7 @@ export function SourceBrowseScreen() {
           ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <View style={{ flex: 1 / 3 }}>
+            <View style={{ flex: 1 / 2 }}>
               <MangaCard
                 id={item.id}
                 title={item.title}
