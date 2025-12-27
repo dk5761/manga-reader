@@ -18,9 +18,25 @@ export default function RootLayout() {
               <WebViewFetcherProvider>
                 <Stack
                   screenOptions={{
-                    headerShown: false,
+                    headerShown: true,
+                    headerStyle: { backgroundColor: "#0a0a0f" },
+                    headerTintColor: "#fff",
+                    headerTitleStyle: { fontWeight: "600" },
+                    headerShadowVisible: false,
+                    headerBackTitle: "",
                   }}
-                />
+                >
+                  {/* Hide header for tabs - tabs have their own headers */}
+                  <Stack.Screen
+                    name="(tabs)"
+                    options={{ headerShown: false, title: "" }}
+                  />
+                  {/* Hide header for reader - full screen experience */}
+                  <Stack.Screen
+                    name="reader/[chapterId]"
+                    options={{ headerShown: false }}
+                  />
+                </Stack>
               </WebViewFetcherProvider>
             </SessionProvider>
           </QueryProvider>

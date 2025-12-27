@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+
 import { useCSSVariable } from "uniwind";
 import { SearchBar, MangaCard } from "@/shared/components";
 import {
@@ -118,19 +118,6 @@ export function SourceBrowseScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      {/* Header */}
-      <View
-        className="flex-row items-center px-4 border-b border-border/30"
-        style={{ paddingTop: insets.top + 8, paddingBottom: 12 }}
-      >
-        <Pressable onPress={() => router.back()} className="p-2 -ml-2 mr-2">
-          <Ionicons name="arrow-back" size={24} color={foreground} />
-        </Pressable>
-        <Text className="text-foreground text-lg font-bold flex-1">
-          {source.name}
-        </Text>
-      </View>
-
       {/* Search Bar */}
       <View className="px-4 py-3">
         <SearchBar
