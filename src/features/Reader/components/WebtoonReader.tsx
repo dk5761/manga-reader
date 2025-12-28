@@ -12,6 +12,7 @@ import type { Page } from "@/sources";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const PRELOAD_COUNT = 5;
 const BOUNDARY_THRESHOLD = 200; // px from edge to trigger loading
+const SCROLL_ACTIVATION_THRESHOLD = 0.5; // 50% of screen height before page tracking activates
 
 type InfiniteWebtoonReaderProps = {
   items: ReaderItem[];
@@ -53,6 +54,10 @@ export const WebtoonReader = forwardRef<
   const lastReportedChapter = useRef<string>("");
   const hasTriggeredPrev = useRef(false);
   const hasTriggeredNext = useRef(false);
+  
+  // Scroll activation tracking - prevents page updates until user intentionally scrolls
+  const hasUserScrolled = useRef(false);
+  const initialScrollOffset = useRef<number | null>(null);
 
   // Get pages for preloading
   const pageItems = items.filter((i): i is PageItem => i.type === "page");
@@ -68,6 +73,14 @@ export const WebtoonReader = forwardRef<
   onLoadPrevRef.current = onLoadPrev;
   onLoadNextRef.current = onLoadNext;
 
+  // Reset scroll tracking when items change (new chapter navigation)
+  const prevItemsLength = useRef(items.length);
+  if (items.length !== prevItemsLength.current) {
+    hasUserScrolled.current = false;
+    initialScrollOffset.current = null;
+    prevItemsLength.current = items.length;
+  }
+
   // Expose scroll methods
   useImperativeHandle(ref, () => ({
     scrollToIndex: (index: number, animated = true) => {
@@ -79,18 +92,26 @@ export const WebtoonReader = forwardRef<
     },
   }));
 
-  // Scroll handler with boundary detection
+  // Scroll handler with boundary detection and activation threshold
   const handleScroll = useCallback(
     (event: any) => {
-      if (useReaderStore.getState().isSliderDragging) {
-        return;
-      }
-
       const offsetY = event.nativeEvent.contentOffset.y;
       const layoutHeight = event.nativeEvent.layoutMeasurement.height;
       const contentHeight = event.nativeEvent.contentSize.height;
 
-      // Boundary detection for loading prev/next chapters
+      // Capture initial scroll position on first scroll event
+      if (initialScrollOffset.current === null) {
+        initialScrollOffset.current = offsetY;
+      }
+
+      // Detect if user has scrolled past threshold (50% of screen height)
+      const scrollThreshold = layoutHeight * SCROLL_ACTIVATION_THRESHOLD;
+      const scrollDelta = Math.abs(offsetY - (initialScrollOffset.current ?? offsetY));
+      if (scrollDelta > scrollThreshold) {
+        hasUserScrolled.current = true;
+      }
+
+      // Boundary detection for loading prev/next chapters (always active)
       const nearTop = offsetY < BOUNDARY_THRESHOLD;
       const nearBottom =
         offsetY + layoutHeight > contentHeight - BOUNDARY_THRESHOLD;
@@ -107,6 +128,13 @@ export const WebtoonReader = forwardRef<
         onLoadNextRef.current?.();
       } else if (!nearBottom) {
         hasTriggeredNext.current = false;
+      }
+
+      // Skip page tracking if:
+      // 1. Slider is being dragged (slider is master)
+      // 2. User hasn't scrolled past threshold (store initial value is master)
+      if (useReaderStore.getState().isSliderDragging || !hasUserScrolled.current) {
+        return;
       }
 
       // Page tracking - use top of viewport with small offset for better UX
