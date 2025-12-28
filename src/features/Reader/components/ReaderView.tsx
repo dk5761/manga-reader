@@ -3,7 +3,6 @@ import { View, StatusBar } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebtoonReader, WebtoonReaderHandle } from "./WebtoonReader";
 import { ReaderControls } from "./ReaderControls";
-import { BrightnessOverlay } from "./BrightnessOverlay";
 import { useReaderStore } from "../store/useReaderStore";
 import { buildReaderItems } from "../types";
 import type { Chapter } from "@/sources";
@@ -108,9 +107,6 @@ export const ReaderView = memo(function ReaderView({
         onLoadNext={onLoadNext}
         paddingBottom={insets.bottom}
       />
-
-      {/* Brightness overlay - dims content only, not controls */}
-      <BrightnessOverlay />
 
       <ReaderControls chapters={chapters} onScrollToPage={handleScrollToPage} />
     </View>

@@ -163,27 +163,6 @@ export const ReaderControls = memo(function ReaderControls({
             {currentPage} / {totalPages}
           </Text>
 
-          {/* Brightness Slider */}
-          <View className="flex-row items-center mb-2">
-            <Ionicons name="sunny-outline" size={18} color="#71717a" />
-            <View className="flex-1 mx-2">
-              <Slider
-                style={{ width: "100%", height: 32 }}
-                minimumValue={10}
-                maximumValue={100}
-                step={5}
-                value={useReaderStore.getState().brightness}
-                onValueChange={(value) =>
-                  useReaderStore.getState().setBrightness(value)
-                }
-                minimumTrackTintColor="#f59e0b"
-                maximumTrackTintColor="#3f3f46"
-                thumbTintColor="#f59e0b"
-              />
-            </View>
-            <Ionicons name="sunny" size={20} color="#f59e0b" />
-          </View>
-
           {/* Page Slider with Chapter Navigation */}
           <View className="flex-row items-center">
             {/* Previous Chapter Arrow */}
