@@ -15,7 +15,7 @@ export const LibrarySearchBar = memo(function LibrarySearchBar() {
 
   // Local state for immediate UI feedback
   const [localValue, setLocalValue] = useState(searchQuery);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   // Sync local state when store changes externally
   useEffect(() => {
