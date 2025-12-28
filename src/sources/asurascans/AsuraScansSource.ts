@@ -7,6 +7,7 @@ import type {
   SearchResult,
   SourceConfig,
 } from "../base/types";
+import { CookieManagerInstance } from "@/core/http/CookieManager";
 
 /**
  * AsuraScans Source Implementation
@@ -25,7 +26,6 @@ export class AsuraScansSource extends Source {
     baseUrl: "https://asuracomic.net",
     logo: require("@/assets/webp/asura-scan.webp"),
     language: "en",
-    needsCloudflareBypass: true,
     nsfw: false,
   };
 
@@ -492,11 +492,16 @@ export class AsuraScansSource extends Source {
       // Sort by order and map to Page objects
       const sortedPages = pagesData.sort((a, b) => a.order - b.order);
 
+      // Get cookies for image requests
+      const domain = new URL(this.baseUrl).hostname;
+      const cookies = await CookieManagerInstance.getCookies(domain);
+
       return sortedPages.map((page, index) => ({
         index,
         imageUrl: page.url,
         headers: {
           Referer: this.baseUrl + "/",
+          ...(cookies && { Cookie: cookies }),
         },
       }));
     } catch (e) {

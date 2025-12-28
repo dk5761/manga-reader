@@ -1,24 +1,19 @@
 import React, {
   createContext,
   useContext,
-  useState,
   useCallback,
-  useRef,
   ReactNode,
+  useEffect,
 } from "react";
-import { SessionWarmup } from "../components/SessionWarmup";
+import { CookieManagerInstance } from "@/core/http/CookieManager";
 
-type SessionState = {
-  isReady: boolean;
-  warmedUpUrls: Set<string>;
-};
+/**
+ * Simplified SessionContext for Mihon-style architecture.
+ * No warmup needed - CookieManager loads from AsyncStorage automatically.
+ */
 
 type SessionContextType = {
-  isSessionReady: (baseUrl: string) => boolean;
-  warmupSession: (baseUrl: string, requireCfClearance?: boolean) => void;
-  waitForSession: (baseUrl: string, timeoutMs?: number) => Promise<boolean>;
   invalidateSession: (baseUrl: string) => void;
-  cancelWarmup: (baseUrl: string) => void;
 };
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -27,152 +22,33 @@ type SessionProviderProps = {
   children: ReactNode;
 };
 
-type WarmupConfig = {
-  url: string;
-  requireCfClearance: boolean;
-};
-
-type WaitingCallback = {
-  resolve: (ready: boolean) => void;
-  timeoutId: NodeJS.Timeout;
-};
-
 /**
- * Provider that manages session warmup for manga sources.
- * Renders hidden WebViews to establish cookies before loading images.
+ * Provider that initializes cookie management.
+ * No warmup needed - cookies loaded from AsyncStorage on demand.
  */
 export function SessionProvider({ children }: SessionProviderProps) {
-  const [warmingConfigs, setWarmingConfigs] = useState<WarmupConfig[]>([]);
-  const [readyUrls, setReadyUrls] = useState<Set<string>>(new Set());
-
-  // Track callbacks waiting for sessions to be ready
-  const waitingCallbacks = useRef<Map<string, WaitingCallback[]>>(new Map());
-
-  const isSessionReady = useCallback(
-    (baseUrl: string) => {
-      return readyUrls.has(baseUrl);
-    },
-    [readyUrls]
-  );
-
-  const warmupSession = useCallback(
-    (baseUrl: string, requireCfClearance = false) => {
-      if (
-        readyUrls.has(baseUrl) ||
-        warmingConfigs.some((c) => c.url === baseUrl)
-      ) {
-        return; // Already ready or warming up
-      }
-      console.log(
-        "[SessionProvider] Starting warmup for:",
-        baseUrl,
-        requireCfClearance ? "(needs CF clearance)" : ""
-      );
-      setWarmingConfigs((prev) => [
-        ...prev,
-        { url: baseUrl, requireCfClearance },
-      ]);
-    },
-    [readyUrls, warmingConfigs]
-  );
-
-  /**
-   * Wait for a session to be ready with timeout
-   * Returns true if session is ready, false if timeout
-   */
-  const waitForSession = useCallback(
-    (baseUrl: string, timeoutMs = 30000): Promise<boolean> => {
-      // Already ready
-      if (readyUrls.has(baseUrl)) {
-        return Promise.resolve(true);
-      }
-
-      return new Promise((resolve) => {
-        const timeoutId = setTimeout(() => {
-          // Remove from waiting list on timeout
-          const callbacks = waitingCallbacks.current.get(baseUrl) || [];
-          waitingCallbacks.current.set(
-            baseUrl,
-            callbacks.filter((cb) => cb.resolve !== resolve)
-          );
-          resolve(false);
-        }, timeoutMs);
-
-        // Add to waiting list
-        const callbacks = waitingCallbacks.current.get(baseUrl) || [];
-        callbacks.push({ resolve, timeoutId });
-        waitingCallbacks.current.set(baseUrl, callbacks);
-      });
-    },
-    [readyUrls]
-  );
-
-  /**
-   * Cancel an in-progress warmup session
-   * Removes WebView and rejects waiting callbacks
-   */
-  const cancelWarmup = useCallback((baseUrl: string) => {
-    console.log("[SessionProvider] Cancelling warmup for:", baseUrl);
-
-    // Remove from warming configs (unmounts the WebView)
-    setWarmingConfigs((prev) => prev.filter((c) => c.url !== baseUrl));
-
-    // Reject all waiting callbacks
-    const callbacks = waitingCallbacks.current.get(baseUrl) || [];
-    callbacks.forEach((cb) => {
-      clearTimeout(cb.timeoutId);
-      cb.resolve(false); // Signal session not ready
-    });
-    waitingCallbacks.current.delete(baseUrl);
+  // Load cookies from storage on mount
+  useEffect(() => {
+    CookieManagerInstance.load();
   }, []);
 
   /**
-   * Invalidate a session (called when CF challenge is detected in response)
-   * This removes the URL from ready set, triggering re-warmup on next access
+   * Invalidate session (clear cookies for a domain)
+   * Called when CF challenge is detected or on manual logout
    */
   const invalidateSession = useCallback((baseUrl: string) => {
-    console.log("[SessionProvider] Invalidating session for:", baseUrl);
-    setReadyUrls((prev) => {
-      const newSet = new Set(prev);
-      newSet.delete(baseUrl);
-      return newSet;
-    });
-  }, []);
-
-  const handleWarmupReady = useCallback((baseUrl: string) => {
-    console.log("[SessionProvider] Session ready for:", baseUrl);
-    setReadyUrls((prev) => new Set([...prev, baseUrl]));
-    setWarmingConfigs((prev) => prev.filter((c) => c.url !== baseUrl));
-
-    // Resolve all waiting callbacks for this URL
-    const callbacks = waitingCallbacks.current.get(baseUrl) || [];
-    callbacks.forEach((cb) => {
-      clearTimeout(cb.timeoutId);
-      cb.resolve(true);
-    });
-    waitingCallbacks.current.delete(baseUrl);
+    try {
+      const domain = new URL(baseUrl).hostname;
+      console.log("[SessionProvider] Invalidating session for:", domain);
+      CookieManagerInstance.clearDomain(domain);
+    } catch (e) {
+      console.error("[SessionProvider] Failed to invalidate session:", e);
+    }
   }, []);
 
   return (
-    <SessionContext.Provider
-      value={{
-        isSessionReady,
-        warmupSession,
-        waitForSession,
-        invalidateSession,
-        cancelWarmup,
-      }}
-    >
+    <SessionContext.Provider value={{ invalidateSession }}>
       {children}
-      {/* Render hidden WebViews for each URL being warmed up */}
-      {warmingConfigs.map((config) => (
-        <SessionWarmup
-          key={config.url}
-          url={config.url}
-          onReady={() => handleWarmupReady(config.url)}
-          requireCfClearance={config.requireCfClearance}
-        />
-      ))}
     </SessionContext.Provider>
   );
 }

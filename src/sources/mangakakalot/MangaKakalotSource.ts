@@ -7,6 +7,7 @@ import type {
   SearchResult,
   SourceConfig,
 } from "../base/types";
+import { CookieManagerInstance } from "@/core/http/CookieManager";
 
 /**
  * MangaKakalot Source Implementation
@@ -21,7 +22,6 @@ export class MangaKakalotSource extends Source {
     logo: require("@/assets/webp/managakakalot.webp"),
     language: "en",
     nsfw: false,
-    needsCloudflareBypass: false,
   };
 
   // Selectors from Tachiyomi MangaBox
@@ -289,6 +289,10 @@ export class MangaKakalotSource extends Source {
     const html = await this.fetchHtml(chapterUrl);
     const doc = this.parseHtml(html);
 
+    // Get cookies for image requests
+    const domain = new URL(this.baseUrl).hostname;
+    const cookies = await CookieManagerInstance.getCookies(domain);
+
     // Try multiple selectors for page images
     const selectors = [
       ".container-chapter-reader img",
@@ -333,6 +337,7 @@ export class MangaKakalotSource extends Source {
           imageUrl: this.absoluteUrl(src),
           headers: {
             Referer: this.baseUrl,
+            ...(cookies && { Cookie: cookies }),
           },
         };
       });

@@ -7,6 +7,7 @@ import type {
   SearchResult,
   SourceConfig,
 } from "../base/types";
+import { CookieManagerInstance } from "@/core/http/CookieManager";
 import { HttpClient } from "@/core/http";
 import { WebViewFetcherService } from "@/core/http/WebViewFetcherService";
 
@@ -25,7 +26,6 @@ export class KissMangaSource extends Source {
     baseUrl: "https://kissmanga.in",
     language: "en",
     nsfw: false,
-    needsCloudflareBypass: true,
   };
 
   // Madara theme uses "kissmanga" instead of "manga"
@@ -313,6 +313,10 @@ export class KissMangaSource extends Source {
     const html = await this.fetchHtml(chapterUrl);
     const doc = this.parseHtml(html);
 
+    // Get cookies for image requests
+    const domain = new URL(this.baseUrl).hostname;
+    const cookies = await CookieManagerInstance.getCookies(domain);
+
     const pages: Page[] = doc.selectAll(
       this.selectors.pageImages,
       (el, index) => {
@@ -323,6 +327,7 @@ export class KissMangaSource extends Source {
           imageUrl,
           headers: {
             Referer: this.baseUrl,
+            ...(cookies && { Cookie: cookies }),
           },
         };
       }

@@ -27,8 +27,11 @@ export abstract class Source {
   get baseUrl(): string {
     return this.config.baseUrl;
   }
+  /**
+   * @deprecated No longer used - CloudflareInterceptor handles CF automatically
+   */
   get needsCloudflareBypass(): boolean {
-    return this.config.needsCloudflareBypass;
+    return this.config.needsCloudflareBypass ?? false;
   }
 
   /**
@@ -67,28 +70,15 @@ export abstract class Source {
 
   /**
    * Fetch HTML from URL with proper headers.
-   * Uses WebView for Cloudflare-protected sources, HttpClient otherwise.
+   * CloudflareInterceptor automatically handles CF challenges.
    */
   protected async fetchHtml(url: string): Promise<string> {
     const fullUrl = url.startsWith("http") ? url : `${this.baseUrl}${url}`;
 
-    // For Cloudflare-protected sources, use WebView fetching
-    if (this.needsCloudflareBypass) {
-      console.log(`[${this.name}] FULL URL:`, fullUrl);
-      return WebViewFetcherService.fetchHtml(fullUrl);
-    }
-
-    // For regular sources, use HttpClient
+    // Use HttpClient - CloudflareInterceptor handles CF automatically
     return HttpClient.getText(fullUrl, {
       headers: {
         Referer: this.baseUrl,
-        "User-Agent":
-          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Cache-Control": "max-age=0",
-        "Upgrade-Insecure-Requests": "1",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
       },
     });
   }
