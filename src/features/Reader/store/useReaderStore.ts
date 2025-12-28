@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import type { Page, Chapter } from "@/sources";
+import type { ChapterSegment } from "../types";
 
 export interface ReaderState {
   // Core reading state
@@ -8,14 +10,20 @@ export interface ReaderState {
 
   // UI state
   isControlsVisible: boolean;
-  isSliderDragging: boolean; // Prevents scroll from updating slider during drag
-  brightness: number; // 10-100, for overlay dimming
+  isSliderDragging: boolean;
+  brightness: number; // 10-100
 
-  // Metadata (set once on init)
+  // Current chapter metadata
   mangaId: string;
   chapterId: string;
   chapterNumber: number;
+  chapterIndex: number; // Index in chapters array
   sourceId: string;
+
+  // Infinite scroll state
+  loadedSegments: ChapterSegment[];
+  isLoadingPrev: boolean;
+  isLoadingNext: boolean;
 
   // Flags
   isInitialized: boolean;
@@ -23,12 +31,25 @@ export interface ReaderState {
 }
 
 export interface ReaderActions {
-  // Actions
+  // Core actions
   setPage: (page: number) => void;
   toggleControls: () => void;
   setMarkedAsRead: () => void;
   setSliderDragging: (value: boolean) => void;
   setBrightness: (value: number) => void;
+
+  // Infinite scroll actions
+  addSegment: (segment: ChapterSegment) => void;
+  updateSegment: (chapterId: string, updates: Partial<ChapterSegment>) => void;
+  setLoadingPrev: (value: boolean) => void;
+  setLoadingNext: (value: boolean) => void;
+  setCurrentChapter: (
+    chapterId: string,
+    chapterIndex: number,
+    chapterNumber: number
+  ) => void;
+
+  // Lifecycle
   initialize: (data: InitData) => void;
   reset: () => void;
 }
@@ -39,7 +60,9 @@ export interface InitData {
   mangaId: string;
   chapterId: string;
   chapterNumber: number;
+  chapterIndex: number;
   sourceId: string;
+  initialSegment?: ChapterSegment;
 }
 
 const initialState: ReaderState = {
@@ -52,38 +75,84 @@ const initialState: ReaderState = {
   mangaId: "",
   chapterId: "",
   chapterNumber: 0,
+  chapterIndex: -1,
   sourceId: "",
+  loadedSegments: [],
+  isLoadingPrev: false,
+  isLoadingNext: false,
   isInitialized: false,
   markedAsRead: false,
 };
 
-export const useReaderStore = create<ReaderState & ReaderActions>((set) => ({
-  ...initialState,
+export const useReaderStore = create<ReaderState & ReaderActions>(
+  (set, get) => ({
+    ...initialState,
 
-  setPage: (page) => set({ currentPage: page }),
+    setPage: (page) => set({ currentPage: page }),
 
-  toggleControls: () =>
-    set((state) => ({ isControlsVisible: !state.isControlsVisible })),
+    toggleControls: () =>
+      set((state) => ({ isControlsVisible: !state.isControlsVisible })),
 
-  setMarkedAsRead: () => set({ markedAsRead: true }),
+    setMarkedAsRead: () => set({ markedAsRead: true }),
 
-  setSliderDragging: (value) => set({ isSliderDragging: value }),
+    setSliderDragging: (value) => set({ isSliderDragging: value }),
 
-  setBrightness: (value) =>
-    set({ brightness: Math.max(10, Math.min(100, value)) }),
+    setBrightness: (value) =>
+      set({ brightness: Math.max(10, Math.min(100, value)) }),
 
-  initialize: (data) =>
-    set({
-      initialPage: data.initialPage,
-      currentPage: data.initialPage,
-      totalPages: data.totalPages,
-      mangaId: data.mangaId,
-      chapterId: data.chapterId,
-      chapterNumber: data.chapterNumber,
-      sourceId: data.sourceId,
-      isInitialized: true,
-      markedAsRead: false,
-    }),
+    // Add a new chapter segment
+    addSegment: (segment) =>
+      set((state) => {
+        // Check if already exists
+        if (
+          state.loadedSegments.some((s) => s.chapterId === segment.chapterId)
+        ) {
+          return state;
+        }
+        // Insert in order by chapterIndex (descending - higher index = earlier chapter)
+        const newSegments = [...state.loadedSegments, segment].sort(
+          (a, b) => b.chapterIndex - a.chapterIndex
+        );
+        return { loadedSegments: newSegments };
+      }),
 
-  reset: () => set(initialState),
-}));
+    // Update existing segment
+    updateSegment: (chapterId, updates) =>
+      set((state) => ({
+        loadedSegments: state.loadedSegments.map((s) =>
+          s.chapterId === chapterId ? { ...s, ...updates } : s
+        ),
+      })),
+
+    setLoadingPrev: (value) => set({ isLoadingPrev: value }),
+    setLoadingNext: (value) => set({ isLoadingNext: value }),
+
+    // Update current chapter (when scrolling to different chapter)
+    setCurrentChapter: (chapterId, chapterIndex, chapterNumber) =>
+      set({
+        chapterId,
+        chapterIndex,
+        chapterNumber,
+        markedAsRead: false, // Reset for new chapter
+      }),
+
+    initialize: (data) =>
+      set({
+        initialPage: data.initialPage,
+        currentPage: data.initialPage,
+        totalPages: data.totalPages,
+        mangaId: data.mangaId,
+        chapterId: data.chapterId,
+        chapterNumber: data.chapterNumber,
+        chapterIndex: data.chapterIndex,
+        sourceId: data.sourceId,
+        loadedSegments: data.initialSegment ? [data.initialSegment] : [],
+        isInitialized: true,
+        markedAsRead: false,
+        isLoadingPrev: false,
+        isLoadingNext: false,
+      }),
+
+    reset: () => set(initialState),
+  })
+);

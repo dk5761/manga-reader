@@ -1,47 +1,97 @@
-import { memo, useCallback, useRef } from "react";
+import { memo, useCallback, useRef, useMemo } from "react";
 import { View, StatusBar } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebtoonReader, WebtoonReaderHandle } from "./WebtoonReader";
 import { ReaderControls } from "./ReaderControls";
 import { BrightnessOverlay } from "./BrightnessOverlay";
 import { useReaderStore } from "../store/useReaderStore";
-import type { Page, Chapter } from "@/sources";
+import { buildReaderItems } from "../types";
+import type { Chapter } from "@/sources";
 
 interface ReaderViewProps {
-  pages: Page[];
-  baseUrl?: string;
   chapters?: Chapter[];
+  baseUrl?: string;
+  onLoadPrev?: () => void;
+  onLoadNext?: () => void;
 }
 
 /**
- * ReaderView - Pure UI component for the reader.
- * No persistence logic - just displays pages and controls.
+ * ReaderView - Pure UI component for the infinite scroll reader.
+ * Builds items from loaded segments and renders the reader.
  */
 export const ReaderView = memo(function ReaderView({
-  pages,
-  baseUrl,
   chapters,
+  baseUrl,
+  onLoadPrev,
+  onLoadNext,
 }: ReaderViewProps) {
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<WebtoonReaderHandle>(null);
 
   // Get store values
-  const initialPage = useReaderStore((s) => s.initialPage);
+  const loadedSegments = useReaderStore((s) => s.loadedSegments);
+  const chapterIndex = useReaderStore((s) => s.chapterIndex);
 
-  // Update store when page changes (UI only, no persistence)
-  const handlePageChange = useCallback((page: number) => {
-    if (page >= 1) {
-      useReaderStore.getState().setPage(page);
+  // Build unified items array from segments
+  const items = useMemo(() => {
+    if (!chapters || loadedSegments.length === 0) {
+      console.log("[ReaderView] No chapters or segments");
+      return [];
     }
-  }, []);
+    const builtItems = buildReaderItems(loadedSegments, chapters, chapterIndex);
+    console.log("[ReaderView] Built items:", {
+      total: builtItems.length,
+      pages: builtItems.filter((i) => i.type === "page").length,
+      transitions: builtItems.filter((i) => i.type === "transition").length,
+      chapterIndex,
+    });
+    return builtItems;
+  }, [loadedSegments, chapters, chapterIndex]);
+
+  // Calculate initial scroll index (skip prev transition)
+  const initialScrollIndex = useMemo(() => {
+    // First item is always prev transition, so start at index 1
+    return items.length > 1 ? 1 : 0;
+  }, [items.length]);
+
+  // Update store when page changes
+  const handlePageChange = useCallback(
+    (page: number, chapterId: string) => {
+      const store = useReaderStore.getState();
+      store.setPage(page);
+
+      // Check if chapter changed
+      if (chapterId && chapterId !== store.chapterId) {
+        const newChapter = chapters?.find((c) => c.id === chapterId);
+        const newIndex = chapters?.findIndex((c) => c.id === chapterId) ?? -1;
+        if (newChapter && newIndex >= 0) {
+          store.setCurrentChapter(chapterId, newIndex, newChapter.number);
+        }
+      }
+    },
+    [chapters]
+  );
 
   const handleTap = useCallback(() => {
     useReaderStore.getState().toggleControls();
   }, []);
 
-  const handleScrollToPage = useCallback((page: number) => {
-    scrollViewRef.current?.scrollToIndex(page - 1, true);
-  }, []);
+  const handleScrollToPage = useCallback(
+    (page: number) => {
+      // Find the page item index in items array
+      let pageCount = 0;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type === "page") {
+          pageCount++;
+          if (pageCount === page) {
+            scrollViewRef.current?.scrollToIndex(i, true);
+            return;
+          }
+        }
+      }
+    },
+    [items]
+  );
 
   return (
     <View className="flex-1 bg-black">
@@ -49,11 +99,13 @@ export const ReaderView = memo(function ReaderView({
 
       <WebtoonReader
         ref={scrollViewRef}
-        pages={pages}
+        items={items}
         baseUrl={baseUrl}
-        initialPage={initialPage}
+        initialScrollIndex={initialScrollIndex}
         onPageChange={handlePageChange}
         onTap={handleTap}
+        onLoadPrev={onLoadPrev}
+        onLoadNext={onLoadNext}
         paddingBottom={insets.bottom}
       />
 

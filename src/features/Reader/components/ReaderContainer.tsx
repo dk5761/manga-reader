@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { View, Text, ActivityIndicator, Pressable } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,6 +11,7 @@ import { ReaderView } from "./ReaderView";
 import { useSaveHistory } from "../hooks/useSaveHistory";
 import { useReaderKeepAwake } from "../hooks/useReaderKeepAwake";
 import { useMarkChapterRead } from "@/features/Library/hooks";
+import type { ChapterSegment } from "../types";
 
 /**
  * Back button overlay for loading/error states
@@ -71,9 +72,10 @@ export function ReaderContainer() {
 
   const { data: chapters } = useChapterList(sourceId || "", mangaUrl || "");
 
-  // Find current chapter for chapter number
+  // Find current chapter for chapter number and index
   const currentChapter = chapters?.find((ch) => ch.url === url);
   const chapterNumber = currentChapter?.number || 0;
+  const currentChapterIndex = chapters?.findIndex((ch) => ch.url === url) ?? -1;
 
   // Store initialization
   const initialize = useReaderStore((s) => s.initialize);
@@ -95,24 +97,38 @@ export function ReaderContainer() {
   const isDataReady = !pagesLoading && pages && pages.length > 0;
 
   useEffect(() => {
-    if (isDataReady && !hasInitializedRef.current) {
+    if (isDataReady && !hasInitializedRef.current && currentChapter) {
       hasInitializedRef.current = true;
+
+      // Create initial segment
+      const initialSegment: ChapterSegment = {
+        chapterId: currentChapter.id || chapterId || "",
+        chapterIndex: currentChapterIndex,
+        chapter: currentChapter,
+        pages: pages,
+        isLoading: false,
+      };
+
       initialize({
         initialPage: 1,
         totalPages: pages.length,
         mangaId: mangaId || "",
-        chapterId: chapterId || "",
+        chapterId: currentChapter.id || chapterId || "",
         chapterNumber,
+        chapterIndex: currentChapterIndex,
         sourceId: sourceId || "",
+        initialSegment,
       });
     }
   }, [
     isDataReady,
-    pages?.length,
+    pages,
     chapterId,
     chapterNumber,
+    currentChapterIndex,
     sourceId,
     mangaId,
+    currentChapter,
     initialize,
   ]);
 
@@ -179,6 +195,74 @@ export function ReaderContainer() {
     return () => reset();
   }, [reset]);
 
+  // Handlers for loading adjacent chapters (phase 2 of infinite scroll)
+  // Must be defined before conditional returns for hooks order
+  const handleLoadPrev = useCallback(() => {
+    if (!chapters || currentChapterIndex >= chapters.length - 1) {
+      console.log("[ReaderContainer] No previous chapter available");
+      return;
+    }
+    const prevChapter = chapters[currentChapterIndex + 1];
+    console.log(
+      "[ReaderContainer] Navigating to previous chapter:",
+      prevChapter.id
+    );
+    router.replace({
+      pathname: "/reader/[chapterId]",
+      params: {
+        chapterId: prevChapter.id,
+        sourceId: sourceId || "",
+        url: prevChapter.url,
+        mangaUrl: mangaUrl || "",
+        mangaId: mangaId || "",
+        mangaTitle: mangaTitle || "",
+        mangaCover: mangaCover || "",
+      },
+    });
+  }, [
+    chapters,
+    currentChapterIndex,
+    router,
+    sourceId,
+    mangaUrl,
+    mangaId,
+    mangaTitle,
+    mangaCover,
+  ]);
+
+  const handleLoadNext = useCallback(() => {
+    if (!chapters || currentChapterIndex <= 0) {
+      console.log("[ReaderContainer] No next chapter available");
+      return;
+    }
+    const nextChapter = chapters[currentChapterIndex - 1];
+    console.log(
+      "[ReaderContainer] Navigating to next chapter:",
+      nextChapter.id
+    );
+    router.replace({
+      pathname: "/reader/[chapterId]",
+      params: {
+        chapterId: nextChapter.id,
+        sourceId: sourceId || "",
+        url: nextChapter.url,
+        mangaUrl: mangaUrl || "",
+        mangaId: mangaId || "",
+        mangaTitle: mangaTitle || "",
+        mangaCover: mangaCover || "",
+      },
+    });
+  }, [
+    chapters,
+    currentChapterIndex,
+    router,
+    sourceId,
+    mangaUrl,
+    mangaId,
+    mangaTitle,
+    mangaCover,
+  ]);
+
   // Loading state
   if (pagesLoading) {
     return (
@@ -221,6 +305,11 @@ export function ReaderContainer() {
   }
 
   return (
-    <ReaderView pages={pages} baseUrl={source?.baseUrl} chapters={chapters} />
+    <ReaderView
+      chapters={chapters}
+      baseUrl={source?.baseUrl}
+      onLoadPrev={handleLoadPrev}
+      onLoadNext={handleLoadNext}
+    />
   );
 }

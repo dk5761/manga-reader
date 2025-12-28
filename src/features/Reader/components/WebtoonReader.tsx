@@ -2,19 +2,25 @@ import { useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { Dimensions } from "react-native";
 import { LegendList } from "@legendapp/list";
 import { WebViewZoomableImage } from "./WebViewZoomableImage";
+import { ChapterTransition } from "./ChapterTransition";
 import { useReaderStore } from "../store/useReaderStore";
 import { useImagePreloader } from "../hooks/useImagePreloader";
+import type { ReaderItem, PageItem } from "../types";
+import { getReaderItemKey } from "../types";
 import type { Page } from "@/sources";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const PRELOAD_COUNT = 5; // Prefetch next 5 pages
+const PRELOAD_COUNT = 5;
+const BOUNDARY_THRESHOLD = 200; // px from edge to trigger loading
 
-type WebtoonReaderProps = {
-  pages: Page[];
+type InfiniteWebtoonReaderProps = {
+  items: ReaderItem[];
   baseUrl?: string;
-  initialPage?: number;
-  onPageChange?: (page: number) => void;
+  initialScrollIndex?: number;
+  onPageChange?: (page: number, chapterId: string) => void;
   onTap?: () => void;
+  onLoadPrev?: () => void;
+  onLoadNext?: () => void;
   paddingBottom?: number;
 };
 
@@ -23,42 +29,59 @@ export type WebtoonReaderHandle = {
 };
 
 /**
- * WebtoonReader - Simple vertical scrolling manga reader.
- * Uses onScroll for page calculation.
+ * InfiniteWebtoonReader - Vertical scrolling reader with chapter transitions.
+ * Supports seamless scrolling between chapters à la Tachiyomi.
  */
 export const WebtoonReader = forwardRef<
   WebtoonReaderHandle,
-  WebtoonReaderProps
+  InfiniteWebtoonReaderProps
 >(function WebtoonReader(
-  { pages, baseUrl, initialPage = 1, onPageChange, onTap, paddingBottom = 0 },
+  {
+    items,
+    baseUrl,
+    initialScrollIndex = 0,
+    onPageChange,
+    onTap,
+    onLoadPrev,
+    onLoadNext,
+    paddingBottom = 0,
+  },
   ref
 ) {
   const listRef = useRef<any>(null);
   const lastReportedPage = useRef(1);
+  const lastReportedChapter = useRef<string>("");
+  const hasTriggeredPrev = useRef(false);
+  const hasTriggeredNext = useRef(false);
 
-  // Preload upcoming pages for smoother reading
+  // Get pages for preloading
+  const pageItems = items.filter((i): i is PageItem => i.type === "page");
   const currentPage = useReaderStore((s) => s.currentPage);
+  const pages: Page[] = pageItems.map((p) => p.page);
   useImagePreloader(pages, currentPage, PRELOAD_COUNT, baseUrl);
 
-  // Store onPageChange in ref
+  // Store callbacks in refs
   const onPageChangeRef = useRef(onPageChange);
+  const onLoadPrevRef = useRef(onLoadPrev);
+  const onLoadNextRef = useRef(onLoadNext);
   onPageChangeRef.current = onPageChange;
+  onLoadPrevRef.current = onLoadPrev;
+  onLoadNextRef.current = onLoadNext;
 
   // Expose scroll methods
   useImperativeHandle(ref, () => ({
     scrollToIndex: (index: number, animated = true) => {
       listRef.current?.scrollToIndex({
-        index: Math.max(0, Math.min(index, pages.length - 1)),
+        index: Math.max(0, Math.min(index, items.length - 1)),
         animated,
         viewPosition: 0,
       });
     },
   }));
 
-  // Simple scroll handler for page tracking
+  // Scroll handler with boundary detection
   const handleScroll = useCallback(
     (event: any) => {
-      // Skip if slider is being dragged (prevents jitter during programmatic scroll)
       if (useReaderStore.getState().isSliderDragging) {
         return;
       }
@@ -67,48 +90,82 @@ export const WebtoonReader = forwardRef<
       const layoutHeight = event.nativeEvent.layoutMeasurement.height;
       const contentHeight = event.nativeEvent.contentSize.height;
 
-      if (pages.length > 0 && contentHeight > 0) {
-        const avgItemHeight = contentHeight / pages.length;
-        const midPoint = offsetY + layoutHeight / 2;
-        const currentPage = Math.min(
-          pages.length,
-          Math.max(1, Math.floor(midPoint / avgItemHeight) + 1)
-        );
+      // Boundary detection for loading prev/next chapters
+      const nearTop = offsetY < BOUNDARY_THRESHOLD;
+      const nearBottom =
+        offsetY + layoutHeight > contentHeight - BOUNDARY_THRESHOLD;
 
-        if (currentPage !== lastReportedPage.current) {
-          lastReportedPage.current = currentPage;
-          onPageChangeRef.current?.(currentPage);
+      if (nearTop && !hasTriggeredPrev.current) {
+        hasTriggeredPrev.current = true;
+        onLoadPrevRef.current?.();
+      } else if (!nearTop) {
+        hasTriggeredPrev.current = false;
+      }
+
+      if (nearBottom && !hasTriggeredNext.current) {
+        hasTriggeredNext.current = true;
+        onLoadNextRef.current?.();
+      } else if (!nearBottom) {
+        hasTriggeredNext.current = false;
+      }
+
+      // Page tracking
+      if (pageItems.length > 0 && contentHeight > 0) {
+        const avgItemHeight = contentHeight / items.length;
+        const midPoint = offsetY + layoutHeight / 2;
+        const currentIndex = Math.floor(midPoint / avgItemHeight);
+        const currentItem = items[currentIndex];
+
+        if (currentItem?.type === "page") {
+          const pageNumber = currentItem.page.index + 1;
+          const chapterId = currentItem.chapterId;
+
+          if (
+            pageNumber !== lastReportedPage.current ||
+            chapterId !== lastReportedChapter.current
+          ) {
+            lastReportedPage.current = pageNumber;
+            lastReportedChapter.current = chapterId;
+            onPageChangeRef.current?.(pageNumber, chapterId);
+          }
         }
       }
     },
-    [pages.length]
+    [items, pageItems.length]
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: Page }) => (
-      <WebViewZoomableImage
-        uri={item.imageUrl}
-        baseUrl={baseUrl}
-        width={SCREEN_WIDTH}
-        minHeight={100}
-        onTap={onTap}
-      />
-    ),
+    ({ item }: { item: ReaderItem }) => {
+      if (item.type === "transition") {
+        return <ChapterTransition item={item} onTap={onTap} />;
+      }
+      return (
+        <WebViewZoomableImage
+          uri={item.page.imageUrl}
+          baseUrl={baseUrl}
+          width={SCREEN_WIDTH}
+          minHeight={100}
+          onTap={onTap}
+        />
+      );
+    },
     [baseUrl, onTap]
   );
 
   const keyExtractor = useCallback(
-    (item: Page, index: number) => `page-${item.index}-${index}`,
+    (item: ReaderItem, index: number) => getReaderItemKey(item, index),
     []
   );
 
   return (
     <LegendList
       ref={listRef}
-      data={pages}
+      data={items}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
-      initialScrollIndex={initialPage > 1 ? initialPage - 1 : undefined}
+      initialScrollIndex={
+        initialScrollIndex > 0 ? initialScrollIndex : undefined
+      }
       estimatedItemSize={SCREEN_WIDTH * 1.5}
       maintainVisibleContentPosition
       showsVerticalScrollIndicator={false}
