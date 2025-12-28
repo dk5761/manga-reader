@@ -41,23 +41,8 @@ export function SourceBrowseScreen() {
   const fgColor = useCSSVariable("--color-foreground");
   const foreground = typeof fgColor === "string" ? fgColor : "#fff";
 
-  // Session warmup
-  const { isSessionReady, warmupSession, cancelWarmup } = useSession();
-  const sessionReady = source ? isSessionReady(source.baseUrl) : false;
-
-  // Trigger warmup on mount, cancel on unmount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (source?.baseUrl) {
-      warmupSession(source.baseUrl, source.needsCloudflareBypass);
-    }
-
-    return () => {
-      if (source?.baseUrl && source?.needsCloudflareBypass) {
-        cancelWarmup(source.baseUrl);
-      }
-    };
-  }, [source?.baseUrl, source?.needsCloudflareBypass]); // Intentionally omit function refs
+  // No session warmup needed anymore - cookies loaded from CookieManager automatically
+  const sessionReady = true; // Always ready now
 
   // Get library manga to check if items are already in library
   const libraryManga = useLibraryManga();

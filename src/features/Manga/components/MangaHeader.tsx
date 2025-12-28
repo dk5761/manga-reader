@@ -5,7 +5,6 @@
 
 import { View, Text, ActivityIndicator } from "react-native";
 import FastImage from "react-native-fast-image";
-import { WebViewImage } from "@/shared/components";
 import type { Source } from "@/sources";
 
 type GenreChipProps = {
@@ -28,6 +27,7 @@ export type MangaHeaderProps = {
   genres: string[];
   sourceName?: string;
   sourceBaseUrl?: string;
+  headers?: Record<string, string>;
   isRefreshing?: boolean;
 };
 
@@ -39,6 +39,7 @@ export function MangaHeader({
   genres,
   sourceName,
   sourceBaseUrl,
+  headers,
   isRefreshing,
 }: MangaHeaderProps) {
   return (
@@ -52,11 +53,14 @@ export function MangaHeader({
             resizeMode={FastImage.resizeMode.cover}
           />
         ) : (
-          <WebViewImage
-            uri={cover}
-            baseUrl={sourceBaseUrl}
-            resizeMode="cover"
+          <FastImage
+            source={{
+              uri: cover,
+              headers: headers || {},
+              priority: FastImage.priority.high,
+            }}
             style={{ width: "100%", height: "100%" }}
+            resizeMode={FastImage.resizeMode.cover}
           />
         )}
       </View>
