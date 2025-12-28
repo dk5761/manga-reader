@@ -18,6 +18,7 @@ type SessionContextType = {
   warmupSession: (baseUrl: string, requireCfClearance?: boolean) => void;
   waitForSession: (baseUrl: string, timeoutMs?: number) => Promise<boolean>;
   invalidateSession: (baseUrl: string) => void;
+  cancelWarmup: (baseUrl: string) => void;
 };
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -107,6 +108,25 @@ export function SessionProvider({ children }: SessionProviderProps) {
   );
 
   /**
+   * Cancel an in-progress warmup session
+   * Removes WebView and rejects waiting callbacks
+   */
+  const cancelWarmup = useCallback((baseUrl: string) => {
+    console.log("[SessionProvider] Cancelling warmup for:", baseUrl);
+
+    // Remove from warming configs (unmounts the WebView)
+    setWarmingConfigs((prev) => prev.filter((c) => c.url !== baseUrl));
+
+    // Reject all waiting callbacks
+    const callbacks = waitingCallbacks.current.get(baseUrl) || [];
+    callbacks.forEach((cb) => {
+      clearTimeout(cb.timeoutId);
+      cb.resolve(false); // Signal session not ready
+    });
+    waitingCallbacks.current.delete(baseUrl);
+  }, []);
+
+  /**
    * Invalidate a session (called when CF challenge is detected in response)
    * This removes the URL from ready set, triggering re-warmup on next access
    */
@@ -140,6 +160,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
         warmupSession,
         waitForSession,
         invalidateSession,
+        cancelWarmup,
       }}
     >
       {children}

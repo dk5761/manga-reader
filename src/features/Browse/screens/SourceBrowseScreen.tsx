@@ -42,16 +42,22 @@ export function SourceBrowseScreen() {
   const foreground = typeof fgColor === "string" ? fgColor : "#fff";
 
   // Session warmup
-  const { isSessionReady, warmupSession } = useSession();
+  const { isSessionReady, warmupSession, cancelWarmup } = useSession();
   const sessionReady = source ? isSessionReady(source.baseUrl) : false;
 
-  // Trigger warmup on mount
+  // Trigger warmup on mount, cancel on unmount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (source?.baseUrl) {
-      // Pass needsCloudflareBypass to require cf_clearance cookie
       warmupSession(source.baseUrl, source.needsCloudflareBypass);
     }
-  }, [source?.baseUrl, source?.needsCloudflareBypass, warmupSession]);
+
+    return () => {
+      if (source?.baseUrl && source?.needsCloudflareBypass) {
+        cancelWarmup(source.baseUrl);
+      }
+    };
+  }, [source?.baseUrl, source?.needsCloudflareBypass]); // Intentionally omit function refs
 
   // Get library manga to check if items are already in library
   const libraryManga = useLibraryManga();
