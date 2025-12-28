@@ -6,6 +6,8 @@ import {
   LibraryGrid,
   SyncProgressBanner,
   SyncCompletionToast,
+  LibrarySearchBar,
+  SourceFilter,
 } from "../components";
 import { EmptyState } from "@/shared/components";
 import { LIBRARY_FILTERS } from "../data/mockData";
@@ -14,29 +16,45 @@ import { useLibraryManga } from "../hooks";
 
 export function LibraryScreen() {
   const router = useRouter();
-  const { activeCategory, setActiveCategory } = useLibraryStore();
+  const { activeCategory, setActiveCategory, searchQuery, activeSource } =
+    useLibraryStore();
 
   // Fetch from Realm database
   const libraryManga = useLibraryManga();
 
-  // Filter manga based on active category from store
+  // Filter manga based on search, source, and category
   const filteredManga = useMemo(() => {
-    if (activeCategory === "All") {
-      return [...libraryManga];
+    let result = [...libraryManga];
+
+    // Search filter (case-insensitive title match)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter((manga) =>
+        manga.title.toLowerCase().includes(query)
+      );
     }
 
-    const statusMap: Record<string, string> = {
-      Reading: "reading",
-      Completed: "completed",
-      "Plan to Read": "plan_to_read",
-      "On Hold": "on_hold",
-      Dropped: "dropped",
-    };
+    // Source filter
+    if (activeSource !== "all") {
+      result = result.filter((manga) => manga.sourceId === activeSource);
+    }
 
-    return libraryManga.filter(
-      (manga) => manga.readingStatus === statusMap[activeCategory]
-    );
-  }, [activeCategory, libraryManga]);
+    // Category/status filter
+    if (activeCategory !== "All") {
+      const statusMap: Record<string, string> = {
+        Reading: "reading",
+        Completed: "completed",
+        "Plan to Read": "plan_to_read",
+        "On Hold": "on_hold",
+        Dropped: "dropped",
+      };
+      result = result.filter(
+        (manga) => manga.readingStatus === statusMap[activeCategory]
+      );
+    }
+
+    return result;
+  }, [libraryManga, searchQuery, activeSource, activeCategory]);
 
   // Transform Realm objects to grid format
   const gridData = useMemo(() => {
@@ -90,6 +108,17 @@ export function LibraryScreen() {
     }
   };
 
+  // Empty state message based on active filters
+  const emptyMessage = useMemo(() => {
+    if (searchQuery.trim()) {
+      return `No manga matching "${searchQuery}"`;
+    }
+    if (activeCategory === "All") {
+      return "Add manga from Browse tab";
+    }
+    return `No titles in "${activeCategory}"`;
+  }, [searchQuery, activeCategory]);
+
   return (
     <View className="flex-1 bg-background">
       {/* Grid with filters as list header */}
@@ -98,6 +127,8 @@ export function LibraryScreen() {
         onMangaPress={handleMangaPress}
         ListHeaderComponent={
           <View className="pb-4">
+            <LibrarySearchBar />
+            <SourceFilter />
             <LibraryFilter
               filters={LIBRARY_FILTERS}
               activeFilter={activeCategory}
@@ -115,11 +146,7 @@ export function LibraryScreen() {
           <EmptyState
             icon="book-outline"
             title="No manga found"
-            description={
-              activeCategory === "All"
-                ? "Add manga from Browse tab"
-                : `No titles in "${activeCategory}"`
-            }
+            description={emptyMessage}
           />
         </View>
       )}

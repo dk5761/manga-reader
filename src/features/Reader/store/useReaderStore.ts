@@ -9,6 +9,7 @@ export interface ReaderState {
   // UI state
   isControlsVisible: boolean;
   isSliderDragging: boolean; // Prevents scroll from updating slider during drag
+  brightness: number; // 10-100, for overlay dimming
 
   // Metadata (set once on init)
   mangaId: string;
@@ -27,6 +28,7 @@ export interface ReaderActions {
   toggleControls: () => void;
   setMarkedAsRead: () => void;
   setSliderDragging: (value: boolean) => void;
+  setBrightness: (value: number) => void;
   initialize: (data: InitData) => void;
   reset: () => void;
 }
@@ -46,6 +48,7 @@ const initialState: ReaderState = {
   initialPage: 1,
   isControlsVisible: true,
   isSliderDragging: false,
+  brightness: 100,
   mangaId: "",
   chapterId: "",
   chapterNumber: 0,
@@ -65,6 +68,9 @@ export const useReaderStore = create<ReaderState & ReaderActions>((set) => ({
   setMarkedAsRead: () => set({ markedAsRead: true }),
 
   setSliderDragging: (value) => set({ isSliderDragging: value }),
+
+  setBrightness: (value) =>
+    set({ brightness: Math.max(10, Math.min(100, value)) }),
 
   initialize: (data) =>
     set({

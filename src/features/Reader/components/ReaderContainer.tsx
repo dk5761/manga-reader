@@ -7,11 +7,15 @@ import { getSource } from "@/sources";
 import { useReaderStore } from "../store/useReaderStore";
 import { ReaderView } from "./ReaderView";
 import { useSaveHistory } from "../hooks/useSaveHistory";
+import { useReaderKeepAwake } from "../hooks/useReaderKeepAwake";
 
 /**
  * ReaderContainer - Data fetching, store initialization, and history saving.
  */
 export function ReaderContainer() {
+  // Keep screen awake during reading
+  useReaderKeepAwake();
+
   const router = useRouter();
   const {
     chapterId,

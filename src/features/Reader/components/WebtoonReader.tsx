@@ -3,9 +3,11 @@ import { Dimensions } from "react-native";
 import { LegendList } from "@legendapp/list";
 import { WebViewZoomableImage } from "./WebViewZoomableImage";
 import { useReaderStore } from "../store/useReaderStore";
+import { useImagePreloader } from "../hooks/useImagePreloader";
 import type { Page } from "@/sources";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const PRELOAD_COUNT = 5; // Prefetch next 5 pages
 
 type WebtoonReaderProps = {
   pages: Page[];
@@ -33,6 +35,10 @@ export const WebtoonReader = forwardRef<
 ) {
   const listRef = useRef<any>(null);
   const lastReportedPage = useRef(1);
+
+  // Preload upcoming pages for smoother reading
+  const currentPage = useReaderStore((s) => s.currentPage);
+  useImagePreloader(pages, currentPage, PRELOAD_COUNT, baseUrl);
 
   // Store onPageChange in ref
   const onPageChangeRef = useRef(onPageChange);

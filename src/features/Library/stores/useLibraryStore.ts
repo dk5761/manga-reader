@@ -14,11 +14,17 @@ interface LibraryState {
   sortBy: SortBy;
   sortAscending: boolean;
 
+  // Filter state (not persisted)
+  searchQuery: string;
+  activeSource: string; // 'all' | sourceId
+
   // Actions
   setActiveCategory: (category: LibraryCategory) => void;
   setViewMode: (mode: ViewMode) => void;
   setSortBy: (sortBy: SortBy) => void;
   toggleSortOrder: () => void;
+  setSearchQuery: (query: string) => void;
+  setActiveSource: (source: string) => void;
 }
 
 export const useLibraryStore = create<LibraryState>()(
@@ -29,6 +35,8 @@ export const useLibraryStore = create<LibraryState>()(
       viewMode: "grid",
       sortBy: "lastRead",
       sortAscending: false,
+      searchQuery: "",
+      activeSource: "all",
 
       // Actions
       setActiveCategory: (category) => set({ activeCategory: category }),
@@ -36,10 +44,19 @@ export const useLibraryStore = create<LibraryState>()(
       setSortBy: (sortBy) => set({ sortBy }),
       toggleSortOrder: () =>
         set((state) => ({ sortAscending: !state.sortAscending })),
+      setSearchQuery: (query) => set({ searchQuery: query }),
+      setActiveSource: (source) => set({ activeSource: source }),
     }),
     {
       name: "library-store",
       storage: createJSONStorage(() => AsyncStorage),
+      // Only persist view preferences, not filter state
+      partialize: (state) => ({
+        activeCategory: state.activeCategory,
+        viewMode: state.viewMode,
+        sortBy: state.sortBy,
+        sortAscending: state.sortAscending,
+      }),
     }
   )
 );
