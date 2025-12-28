@@ -1,3 +1,8 @@
+/**
+ * @deprecated This file is deprecated. Use InfiniteReaderContainer instead.
+ * Kept for reference only.
+ */
+
 import { memo, useCallback, useRef, useMemo } from "react";
 import { View, StatusBar } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -5,7 +10,7 @@ import { WebtoonReader, WebtoonReaderHandle } from "./WebtoonReader";
 import { ReaderControls } from "./ReaderControls";
 import { BrightnessOverlay } from "./BrightnessOverlay";
 import { useReaderStore } from "../store/useReaderStore";
-import { buildReaderItems } from "../types";
+import type { LegacyReaderItem } from "../types";
 import type { Chapter } from "@/sources";
 
 interface ReaderViewProps {
@@ -33,19 +38,10 @@ export const ReaderView = memo(function ReaderView({
   const chapterIndex = useReaderStore((s) => s.chapterIndex);
 
   // Build unified items array from segments
-  const items = useMemo(() => {
-    if (!chapters || loadedSegments.length === 0) {
-      console.log("[ReaderView] No chapters or segments");
-      return [];
-    }
-    const builtItems = buildReaderItems(loadedSegments, chapters, chapterIndex);
-    console.log("[ReaderView] Built items:", {
-      total: builtItems.length,
-      pages: builtItems.filter((i) => i.type === "page").length,
-      transitions: builtItems.filter((i) => i.type === "transition").length,
-      chapterIndex,
-    });
-    return builtItems;
+  // @deprecated - this file is not used, returning empty
+  const items: LegacyReaderItem[] = useMemo(() => {
+    console.log("[ReaderView] DEPRECATED - use InfiniteReaderContainer");
+    return [];
   }, [loadedSegments, chapters, chapterIndex]);
 
   // Calculate initial scroll index (skip prev transition)
@@ -99,7 +95,7 @@ export const ReaderView = memo(function ReaderView({
 
       <WebtoonReader
         ref={scrollViewRef}
-        items={items}
+        items={items as any}
         baseUrl={baseUrl}
         initialScrollIndex={initialScrollIndex}
         onPageChange={handlePageChange}

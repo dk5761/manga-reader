@@ -1,4 +1,4 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { View, Text, Pressable } from "react-native";
 import Slider from "@react-native-community/slider";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,7 +9,7 @@ import Animated, {
   withTiming,
   interpolate,
 } from "react-native-reanimated";
-import { useReaderStore } from "../store/useReaderStore";
+import { useInfiniteReaderStore } from "../store/useInfiniteReaderStore";
 import type { Chapter } from "@/sources";
 
 interface ReaderControlsProps {
@@ -28,11 +28,18 @@ export const ReaderControls = memo(function ReaderControls({
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  // Fine-grained subscriptions - only re-render when these specific values change
-  const currentPage = useReaderStore((s) => s.currentPage);
-  const totalPages = useReaderStore((s) => s.totalPages);
-  const isControlsVisible = useReaderStore((s) => s.isControlsVisible);
-  const chapterId = useReaderStore((s) => s.chapterId);
+  // Fine-grained subscriptions from infinite reader store
+  const currentPage = useInfiniteReaderStore((s) => s.currentPage);
+  const loadedChapters = useInfiniteReaderStore((s) => s.loadedChapters);
+  const currentChapterId = useInfiniteReaderStore((s) => s.currentChapterId);
+  const isControlsVisible = useInfiniteReaderStore((s) => s.isControlsVisible);
+  const chapterId = currentChapterId;
+
+  // Calculate total pages from loaded chapter
+  const totalPages = useMemo(() => {
+    const loaded = loadedChapters.get(currentChapterId);
+    return loaded?.pages.length ?? 0;
+  }, [loadedChapters, currentChapterId]);
 
   // Chapter navigation
   const currentChapterIndex =
@@ -47,7 +54,7 @@ export const ReaderControls = memo(function ReaderControls({
       pathname: "/reader/[chapterId]",
       params: {
         chapterId: prevChapter.id,
-        sourceId: useReaderStore.getState().sourceId,
+        sourceId: useInfiniteReaderStore.getState().sourceId,
         url: prevChapter.url,
         mangaUrl: "", // Will be resolved from route
       },
@@ -61,7 +68,7 @@ export const ReaderControls = memo(function ReaderControls({
       pathname: "/reader/[chapterId]",
       params: {
         chapterId: nextChapter.id,
-        sourceId: useReaderStore.getState().sourceId,
+        sourceId: useInfiniteReaderStore.getState().sourceId,
         url: nextChapter.url,
         mangaUrl: "",
       },
@@ -88,11 +95,11 @@ export const ReaderControls = memo(function ReaderControls({
   }));
 
   const handleSliderStart = useCallback(() => {
-    useReaderStore.getState().setSliderDragging(true);
+    useInfiniteReaderStore.getState().setSliderDragging(true);
   }, []);
 
   const handleSliderChange = useCallback((value: number) => {
-    useReaderStore.getState().setPage(Math.round(value));
+    useInfiniteReaderStore.getState().setPage(Math.round(value));
   }, []);
 
   const handleSliderComplete = useCallback(
@@ -101,7 +108,7 @@ export const ReaderControls = memo(function ReaderControls({
       onScrollToPage(targetPage);
       // Clear dragging flag after scroll animation settles
       setTimeout(() => {
-        useReaderStore.getState().setSliderDragging(false);
+        useInfiniteReaderStore.getState().setSliderDragging(false);
       }, 500);
     },
     [onScrollToPage]
@@ -172,9 +179,9 @@ export const ReaderControls = memo(function ReaderControls({
                 minimumValue={10}
                 maximumValue={100}
                 step={5}
-                value={useReaderStore.getState().brightness}
+                value={useInfiniteReaderStore.getState().brightness}
                 onValueChange={(value) =>
-                  useReaderStore.getState().setBrightness(value)
+                  useInfiniteReaderStore.getState().setBrightness(value)
                 }
                 minimumTrackTintColor="#f59e0b"
                 maximumTrackTintColor="#3f3f46"

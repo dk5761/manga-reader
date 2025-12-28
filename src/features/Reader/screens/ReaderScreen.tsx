@@ -1,9 +1,9 @@
-import { ReaderContainer } from "../components/ReaderContainer";
+import { InfiniteReaderContainer } from "../components/InfiniteReaderContainer";
 
 /**
- * ReaderScreen is now a thin wrapper that renders the ReaderContainer.
- * All logic has been moved to ReaderContainer and child components.
+ * ReaderScreen is now a thin wrapper that renders the InfiniteReaderContainer.
+ * Uses seamless chapter scrolling.
  */
 export function ReaderScreen() {
-  return <ReaderContainer />;
+  return <InfiniteReaderContainer />;
 }

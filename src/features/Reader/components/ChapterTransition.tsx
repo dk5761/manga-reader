@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { View, Text, ActivityIndicator, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import type { TransitionItem } from "../types";
+import type { TransitionItem } from "../types/infinite-reader.types";
 
 interface ChapterTransitionProps {
   item: TransitionItem;
@@ -18,7 +18,7 @@ export const ChapterTransition = memo(function ChapterTransition({
   onTap,
   onLoadChapter,
 }: ChapterTransitionProps) {
-  const { direction, chapter, isLoading, error } = item;
+  const { direction, targetChapter, isLoading, error } = item;
 
   // Determine display text
   const isPrev = direction === "prev";
@@ -27,33 +27,35 @@ export const ChapterTransition = memo(function ChapterTransition({
   const getTitle = () => {
     if (error) return "Failed to load";
     if (isLoading) return isPrev ? "Loading previous..." : "Loading next...";
-    if (!chapter) {
+    if (!targetChapter) {
       return isPrev ? "No previous chapter" : "You're all caught up!";
     }
     return isPrev
-      ? `← Previous: Chapter ${chapter.number}`
-      : `Next: Chapter ${chapter.number} →`;
+      ? `← Previous: Chapter ${targetChapter.number}`
+      : `Next: Chapter ${targetChapter.number} →`;
   };
 
   const getSubtitle = () => {
     if (error) return error;
     if (isLoading) return "Please wait...";
-    if (!chapter) {
+    if (!targetChapter) {
       return isPrev
         ? "This is the first chapter"
         : "No more chapters available";
     }
-    return chapter.title || `Scroll ${isPrev ? "up" : "down"} to continue`;
+    return (
+      targetChapter.title || `Scroll ${isPrev ? "up" : "down"} to continue`
+    );
   };
 
   const getIcon = (): keyof typeof Ionicons.glyphMap => {
     if (error) return "alert-circle";
     if (isLoading) return "hourglass";
-    if (!chapter) return isPrev ? "flag" : "checkmark-circle";
+    if (!targetChapter) return isPrev ? "flag" : "checkmark-circle";
     return isPrev ? "chevron-up" : "chevron-down";
   };
 
-  const iconColor = error ? "#ef4444" : chapter ? "#00d9ff" : "#71717a";
+  const iconColor = error ? "#ef4444" : targetChapter ? "#00d9ff" : "#71717a";
 
   return (
     <Pressable onPress={onTap}>
