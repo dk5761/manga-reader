@@ -109,7 +109,7 @@ export const WebtoonReader = forwardRef<
       onScroll={handleScroll}
       scrollEventThrottle={16}
       contentContainerStyle={{ paddingBottom }}
-      decelerationRate="fast"
+      decelerationRate={0.992}
       drawDistance={SCREEN_WIDTH * 2}
     />
   );
