@@ -7,6 +7,9 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import type { SyncResult } from "@/features/Library/stores/useSyncStore";
 
+// Unique ID for sync progress notification (so we can update it)
+const SYNC_PROGRESS_NOTIFICATION_ID = "sync-progress";
+
 // Configure notification handling
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -34,11 +37,46 @@ export async function requestNotificationPermissions(): Promise<boolean> {
 }
 
 /**
+ * Send/update sync progress notification
+ * Shows: "Syncing MangaTitle (SourceName) - 3/10"
+ */
+export async function sendSyncProgressNotification(
+  mangaTitle: string,
+  sourceName: string,
+  current: number,
+  total: number
+): Promise<void> {
+  // Dismiss previous progress notification first
+  await Notifications.dismissNotificationAsync(SYNC_PROGRESS_NOTIFICATION_ID);
+
+  await Notifications.scheduleNotificationAsync({
+    identifier: SYNC_PROGRESS_NOTIFICATION_ID,
+    content: {
+      title: `🔄 Syncing ${current}/${total}`,
+      body: `${mangaTitle} (${sourceName})`,
+      sound: false,
+    },
+    trigger: null, // Immediate
+  });
+}
+
+/**
+ * Dismiss sync progress notification
+ * Call when sync completes
+ */
+export async function dismissSyncProgressNotification(): Promise<void> {
+  await Notifications.dismissNotificationAsync(SYNC_PROGRESS_NOTIFICATION_ID);
+}
+
+/**
  * Send a local notification for sync completion
  */
 export async function sendSyncCompletionNotification(
   result: SyncResult
 ): Promise<void> {
+  // First dismiss progress notification
+  await dismissSyncProgressNotification();
+
   const hasNewChapters = result.newChapters > 0;
   const hasFailures = result.failed.length > 0;
 

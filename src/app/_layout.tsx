@@ -1,5 +1,6 @@
 import "../global.css";
 
+import { useEffect } from "react";
 import { useColorScheme } from "react-native";
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -9,10 +10,16 @@ import { SessionProvider } from "@/shared/contexts/SessionContext";
 import { WebViewFetcherProvider } from "@/shared/contexts/WebViewFetcherContext";
 import { DatabaseProvider } from "@/core/database";
 import { UpdateScreen } from "@/shared/components/UpdateScreen";
+import { requestNotificationPermissions } from "@/shared/services/notifications";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
+
+  // Request notification permissions on app startup
+  useEffect(() => {
+    requestNotificationPermissions();
+  }, []);
 
   return (
     <GestureHandlerRootView className="flex-1">

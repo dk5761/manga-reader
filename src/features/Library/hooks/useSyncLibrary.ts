@@ -4,7 +4,10 @@ import { MangaSchema, ChapterSchema } from "@/core/database";
 import { getSource } from "@/sources";
 import { useSession } from "@/shared/contexts/SessionContext";
 import { useSyncStore, SyncResult, SyncFailure } from "../stores/useSyncStore";
-import { sendSyncCompletionNotification } from "@/shared/services/notifications";
+import {
+  sendSyncCompletionNotification,
+  sendSyncProgressNotification,
+} from "@/shared/services/notifications";
 
 /**
  * Hook to sync all library manga and check for new chapters
@@ -89,6 +92,14 @@ export function useSyncLibrary() {
       for (const manga of sourceManga) {
         processedCount++;
         updateProgress(processedCount, source.name, manga.title);
+
+        // Show progress notification
+        sendSyncProgressNotification(
+          manga.title,
+          source.name,
+          processedCount,
+          mangaList.length
+        ).catch(() => {}); // Fire and forget
 
         try {
           // Fetch latest chapters
