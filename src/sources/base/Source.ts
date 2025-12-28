@@ -74,10 +74,7 @@ export abstract class Source {
 
     // For Cloudflare-protected sources, use WebView fetching
     if (this.needsCloudflareBypass) {
-      console.log(
-        `[${this.name}] Fetching via WebView:`,
-        fullUrl.substring(0, 60)
-      );
+      console.log(`[${this.name}] FULL URL:`, fullUrl);
       return WebViewFetcherService.fetchHtml(fullUrl);
     }
 

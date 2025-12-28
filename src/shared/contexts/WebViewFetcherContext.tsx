@@ -177,10 +177,18 @@ export function WebViewFetcherProvider({
     if (webViewRef.current) {
       if (request.type === "navigate") {
         // Navigate to URL for GET requests
-        webViewRef.current.injectJavaScript(`
-          window.location.href = "${request.url}";
-          true;
-        `);
+        // Use window.location.replace() to force full navigation (bypass any caching)
+        // Add timestamp to bust browser cache
+        const cacheBustedUrl =
+          request.url +
+          (request.url.includes("?") ? "&" : "?") +
+          "_t=" +
+          Date.now();
+        const safeUrl = JSON.stringify(cacheBustedUrl);
+        console.log("[WebViewFetcher] Full URL to navigate:", cacheBustedUrl);
+        webViewRef.current.injectJavaScript(
+          `window.location.replace(${safeUrl}); true;`
+        );
       } else if (request.type === "post") {
         const targetOrigin = getOrigin(request.url);
 
@@ -230,11 +238,38 @@ export function WebViewFetcherProvider({
         // Handle navigation response (GET)
         if (data.type === "html") {
           console.log("[WebViewFetcher] Received HTML:", {
-            url: data.url?.substring(0, 50),
+            responseUrl: data.url,
+            requestUrl: request.url,
             title: data.title,
             isCfChallenge: data.isCfChallenge,
             length: data.html?.length,
           });
+
+          // Check if the response URL matches the request URL (allow for slight differences)
+          // This prevents returning stale HTML from the previous page
+          // Extract key params (like order=) to verify we got the right page
+          const requestUrl = new URL(request.url);
+          const responseUrl = data.url || "";
+
+          // Get the key distinguishing param (e.g., order=update or order=rating)
+          const requestOrder = requestUrl.searchParams.get("order");
+          const responseHasCorrectOrder = requestOrder
+            ? responseUrl.includes(`order=${requestOrder}`)
+            : responseUrl.includes(requestUrl.pathname);
+
+          if (!responseHasCorrectOrder) {
+            console.log(
+              "[WebViewFetcher] URL mismatch, waiting for correct page...",
+              { expected: requestOrder, got: responseUrl }
+            );
+            // Wait for the correct page to load
+            setTimeout(() => {
+              if (webViewRef.current) {
+                webViewRef.current.injectJavaScript(EXTRACT_HTML_JS);
+              }
+            }, 1000);
+            return;
+          }
 
           if (data.isCfChallenge) {
             retryCountRef.current++;

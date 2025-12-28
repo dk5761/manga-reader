@@ -1,5 +1,6 @@
 import "../global.css";
 
+import { useColorScheme } from "react-native";
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -10,6 +11,9 @@ import { DatabaseProvider } from "@/core/database";
 import { UpdateScreen } from "@/shared/components/UpdateScreen";
 
 export default function RootLayout() {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+
   return (
     <GestureHandlerRootView className="flex-1">
       <SafeAreaProvider>
@@ -20,8 +24,10 @@ export default function RootLayout() {
                 <Stack
                   screenOptions={{
                     headerShown: true,
-                    headerStyle: { backgroundColor: "#0a0a0f" },
-                    headerTintColor: "#fff",
+                    headerStyle: {
+                      backgroundColor: isDark ? "#0a0a0f" : "#ffffff",
+                    },
+                    headerTintColor: isDark ? "#fff" : "#000",
                     headerTitleStyle: { fontWeight: "600" },
                     headerShadowVisible: false,
                     headerBackTitle: "",
