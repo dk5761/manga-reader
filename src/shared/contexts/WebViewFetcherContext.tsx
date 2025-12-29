@@ -23,6 +23,7 @@ import { WebViewFetcherService } from "@/core/http/WebViewFetcherService";
 import { registerManualChallengeHandler } from "@/core/http/CloudflareInterceptor";
 import { CookieManagerInstance } from "@/core/http/CookieManager";
 import { useSession } from "./SessionContext";
+import CookieSync from "cookie-sync";
 
 type RequestType = "navigate" | "post";
 
@@ -175,8 +176,12 @@ export function WebViewFetcherProvider({
     ((result: { success: boolean; cookies?: string }) => void) | null
   >(null);
   const manualWebViewRef = useRef<WebView>(null);
-  const manualChallengeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cfCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const manualChallengeTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const cfCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null
+  );
 
   // Process next request in queue
   const processNextRequest = useCallback(() => {
@@ -509,25 +514,34 @@ export function WebViewFetcherProvider({
   const { invalidateSession } = useSession();
 
   // Check for successful CF challenge completion (cf_clearance cookie)
-  const checkForCfClearance = useCallback(async (url: string): Promise<{
-    success: boolean;
-    cookies?: string;
-  }> => {
-    try {
-      const domain = new URL(url).hostname;
-      const cookiesArray = await CookieManagerInstance.extractFromWebView(url);
-      const hasCfClearance = cookiesArray.some((c) => c.name === "cf_clearance");
-      
-      if (hasCfClearance) {
-        await CookieManagerInstance.setCookies(domain, cookiesArray);
-        const cookieString = await CookieManagerInstance.getCookies(domain);
-        return { success: true, cookies: cookieString || undefined };
+  const checkForCfClearance = useCallback(
+    async (
+      url: string
+    ): Promise<{
+      success: boolean;
+      cookies?: string;
+    }> => {
+      try {
+        const domain = new URL(url).hostname;
+        const cookiesArray = await CookieManagerInstance.extractFromWebView(
+          url
+        );
+        const hasCfClearance = cookiesArray.some(
+          (c) => c.name === "cf_clearance"
+        );
+
+        if (hasCfClearance) {
+          await CookieManagerInstance.setCookies(domain, cookiesArray);
+          const cookieString = await CookieManagerInstance.getCookies(domain);
+          return { success: true, cookies: cookieString || undefined };
+        }
+        return { success: false };
+      } catch {
+        return { success: false };
       }
-      return { success: false };
-    } catch {
-      return { success: false };
-    }
-  }, []);
+    },
+    []
+  );
 
   // Manual challenge handler - called by CloudflareInterceptor when auto-bypass fails
   const handleManualChallenge = useCallback(
@@ -542,7 +556,7 @@ export function WebViewFetcherProvider({
           console.log("[WebViewFetcher] Manual challenge timeout (90s)");
           const result = await checkForCfClearance(url);
           clearManualChallengeTimers();
-          
+
           if (manualChallengeResolveRef.current) {
             manualChallengeResolveRef.current(result);
             manualChallengeResolveRef.current = null;
@@ -554,9 +568,11 @@ export function WebViewFetcherProvider({
         cfCheckIntervalRef.current = setInterval(async () => {
           const result = await checkForCfClearance(url);
           if (result.success) {
-            console.log("[WebViewFetcher] cf_clearance detected, auto-dismissing");
+            console.log(
+              "[WebViewFetcher] cf_clearance detected, auto-dismissing"
+            );
             clearManualChallengeTimers();
-            
+
             if (manualChallengeResolveRef.current) {
               manualChallengeResolveRef.current(result);
               manualChallengeResolveRef.current = null;
@@ -575,20 +591,32 @@ export function WebViewFetcherProvider({
 
     console.log("[WebViewFetcher] User pressed Done, extracting cookies...");
     clearManualChallengeTimers();
-    
+
     const domain = new URL(manualChallengeUrl).hostname;
 
     try {
-      // Extract cookies from WebView
-      const cookiesArray = await CookieManagerInstance.extractFromWebView(
-        manualChallengeUrl
-      );
-      await CookieManagerInstance.setCookies(domain, cookiesArray);
-      const cookieString = await CookieManagerInstance.getCookies(domain);
+      let hasCfClearance = false;
+      let cookieString: string | undefined;
 
-      const hasCfClearance = cookiesArray.some(
-        (c) => c.name === "cf_clearance"
-      );
+      // Use native module on iOS for reliable cookie extraction from WKWebView
+      if (Platform.OS === "ios") {
+        console.log("[WebViewFetcher] Using native CookieSync for iOS...");
+        cookieString = await CookieSync.getCookieString(manualChallengeUrl);
+        hasCfClearance = await CookieSync.hasCfClearance(manualChallengeUrl);
+
+        // Also sync to native storage for potential URLSession usage
+        await CookieSync.syncCookiesToNative(manualChallengeUrl);
+      } else {
+        // Android: use existing method (works fine)
+        const cookiesArray = await CookieManagerInstance.extractFromWebView(
+          manualChallengeUrl
+        );
+        await CookieManagerInstance.setCookies(domain, cookiesArray);
+        cookieString =
+          (await CookieManagerInstance.getCookies(domain)) || undefined;
+        hasCfClearance = cookiesArray.some((c) => c.name === "cf_clearance");
+      }
+
       console.log(
         "[WebViewFetcher] Manual challenge cookies:",
         hasCfClearance ? "cf_clearance found" : "no cf_clearance"
@@ -597,7 +625,7 @@ export function WebViewFetcherProvider({
       if (manualChallengeResolveRef.current) {
         manualChallengeResolveRef.current({
           success: hasCfClearance,
-          cookies: cookieString || undefined,
+          cookies: cookieString,
         });
         manualChallengeResolveRef.current = null;
       }
@@ -616,7 +644,7 @@ export function WebViewFetcherProvider({
   const handleManualChallengeCancel = useCallback(() => {
     console.log("[WebViewFetcher] User cancelled manual challenge");
     clearManualChallengeTimers();
-    
+
     if (manualChallengeResolveRef.current) {
       manualChallengeResolveRef.current({ success: false });
       manualChallengeResolveRef.current = null;
