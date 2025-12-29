@@ -52,6 +52,8 @@ export function ReaderContainer() {
     mangaId,
     mangaTitle,
     mangaCover,
+    chapterNumber: chapterNumberParam,
+    chapterTitle: chapterTitleParam,
   } = useLocalSearchParams<{
     chapterId: string;
     sourceId: string;
@@ -60,6 +62,8 @@ export function ReaderContainer() {
     mangaId?: string;
     mangaTitle?: string;
     mangaCover?: string;
+    chapterNumber?: string;
+    chapterTitle?: string;
   }>();
 
   // Data fetching
@@ -72,9 +76,21 @@ export function ReaderContainer() {
 
   const { data: chapters } = useChapterList(sourceId || "", mangaUrl || "");
 
-  // Find current chapter for chapter number and index
-  const currentChapter = chapters?.find((ch) => ch.url === url);
-  const chapterNumber = currentChapter?.number || 0;
+  // Find current chapter or create fallback from params
+  const currentChapter =
+    chapters?.find((ch) => ch.url === url) ??
+    (chapterNumberParam
+      ? {
+          id: chapterId || "",
+          mangaId: mangaId || "",
+          url: url || "",
+          number: parseFloat(chapterNumberParam),
+          title: chapterTitleParam,
+        }
+      : undefined);
+
+  const chapterNumber =
+    currentChapter?.number || parseFloat(chapterNumberParam || "0") || 0;
   const currentChapterIndex = chapters?.findIndex((ch) => ch.url === url) ?? -1;
 
   // Store initialization
@@ -217,6 +233,8 @@ export function ReaderContainer() {
         mangaId: mangaId || "",
         mangaTitle: mangaTitle || "",
         mangaCover: mangaCover || "",
+        chapterNumber: prevChapter.number.toString(),
+        chapterTitle: prevChapter.title || "",
       },
     });
   }, [
@@ -250,6 +268,8 @@ export function ReaderContainer() {
         mangaId: mangaId || "",
         mangaTitle: mangaTitle || "",
         mangaCover: mangaCover || "",
+        chapterNumber: nextChapter.number.toString(),
+        chapterTitle: nextChapter.title || "",
       },
     });
   }, [

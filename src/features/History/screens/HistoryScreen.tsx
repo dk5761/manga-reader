@@ -132,6 +132,11 @@ export function HistoryScreen() {
         sourceId: item.sourceId,
         url: item.chapterUrl,
         mangaUrl: `/${mangaSlug}`, // Reconstruct manga URL
+        mangaId: item.mangaId,
+        mangaTitle: item.mangaTitle,
+        mangaCover: item.mangaCover || "",
+        chapterNumber: item.chapterNumber.toString(),
+        chapterTitle: item.chapterTitle || "",
       },
     });
   };

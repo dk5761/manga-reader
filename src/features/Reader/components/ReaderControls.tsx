@@ -43,13 +43,17 @@ export const ReaderControls = memo(function ReaderControls({
   const goToPrevChapter = useCallback(() => {
     if (!chapters || !hasPrevChapter) return;
     const prevChapter = chapters[currentChapterIndex + 1];
+    const state = useReaderStore.getState();
     router.replace({
       pathname: "/reader/[chapterId]",
       params: {
         chapterId: prevChapter.id,
-        sourceId: useReaderStore.getState().sourceId,
+        sourceId: state.sourceId,
         url: prevChapter.url,
         mangaUrl: "", // Will be resolved from route
+        mangaId: state.mangaId,
+        chapterNumber: prevChapter.number.toString(),
+        chapterTitle: prevChapter.title || "",
       },
     });
   }, [chapters, currentChapterIndex, hasPrevChapter, router]);
@@ -57,13 +61,17 @@ export const ReaderControls = memo(function ReaderControls({
   const goToNextChapter = useCallback(() => {
     if (!chapters || !hasNextChapter) return;
     const nextChapter = chapters[currentChapterIndex - 1];
+    const state = useReaderStore.getState();
     router.replace({
       pathname: "/reader/[chapterId]",
       params: {
         chapterId: nextChapter.id,
-        sourceId: useReaderStore.getState().sourceId,
+        sourceId: state.sourceId,
         url: nextChapter.url,
         mangaUrl: "",
+        mangaId: state.mangaId,
+        chapterNumber: nextChapter.number.toString(),
+        chapterTitle: nextChapter.title || "",
       },
     });
   }, [chapters, currentChapterIndex, hasNextChapter, router]);

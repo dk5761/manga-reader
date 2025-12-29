@@ -35,7 +35,12 @@ export function ChapterListSection({
     markPreviousAsUnread,
   } = useChapterActions(mangaId);
 
-  const handleChapterPress = (chapterId: string, chapterUrl: string) => {
+  const handleChapterPress = (
+    chapterId: string,
+    chapterUrl: string,
+    chapterNumber: number,
+    chapterTitle?: string
+  ) => {
     router.push({
       pathname: "/reader/[chapterId]",
       params: {
@@ -46,6 +51,8 @@ export function ChapterListSection({
         mangaId,
         mangaTitle,
         mangaCover: mangaCover || "",
+        chapterNumber: chapterNumber.toString(),
+        chapterTitle: chapterTitle || "",
       },
     });
   };
@@ -66,7 +73,14 @@ export function ChapterListSection({
             key={chapter.id}
             chapter={chapter}
             isRead={readChapterIds.has(chapter.id)}
-            onPress={() => handleChapterPress(chapter.id, chapter.url)}
+            onPress={() =>
+              handleChapterPress(
+                chapter.id,
+                chapter.url,
+                chapter.number,
+                chapter.title
+              )
+            }
             onMarkAsRead={() => markAsRead(chapter.id)}
             onMarkAsUnread={() => markAsUnread(chapter.id)}
             onMarkPreviousAsRead={() =>
