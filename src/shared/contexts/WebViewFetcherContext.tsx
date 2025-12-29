@@ -15,6 +15,7 @@ import {
   Pressable,
   SafeAreaView,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { WebView, WebViewMessageEvent } from "react-native-webview";
 import { HttpClient } from "@/core/http";
@@ -634,7 +635,16 @@ export function WebViewFetcherProvider({
               thirdPartyCookiesEnabled
               sharedCookiesEnabled
               cacheEnabled
-              userAgent={HttpClient.getUserAgent()}
+              cacheMode="LOAD_DEFAULT"
+              originWhitelist={["*"]}
+              allowsInlineMediaPlayback
+              mixedContentMode="compatibility"
+              allowsBackForwardNavigationGestures
+              userAgent={
+                Platform.OS === "ios"
+                  ? "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+                  : "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+              }
               startInLoadingState
               renderLoading={() => (
                 <View style={styles.loadingContainer}>
@@ -642,6 +652,20 @@ export function WebViewFetcherProvider({
                   <Text style={styles.loadingText}>Loading challenge...</Text>
                 </View>
               )}
+              onError={(syntheticEvent) => {
+                const { nativeEvent } = syntheticEvent;
+                console.warn(
+                  "[WebViewFetcher] Manual WebView error:",
+                  nativeEvent.description
+                );
+              }}
+              onHttpError={(syntheticEvent) => {
+                const { nativeEvent } = syntheticEvent;
+                console.warn(
+                  "[WebViewFetcher] Manual WebView HTTP error:",
+                  nativeEvent.statusCode
+                );
+              }}
             />
           )}
         </SafeAreaView>
