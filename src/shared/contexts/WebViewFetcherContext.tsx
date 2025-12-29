@@ -175,6 +175,8 @@ export function WebViewFetcherProvider({
     ((result: { success: boolean; cookies?: string }) => void) | null
   >(null);
   const manualWebViewRef = useRef<WebView>(null);
+  const manualChallengeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cfCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Process next request in queue
   const processNextRequest = useCallback(() => {
@@ -491,8 +493,41 @@ export function WebViewFetcherProvider({
     setIsReady(true);
   }, []);
 
+  // Clean up manual challenge timers
+  const clearManualChallengeTimers = useCallback(() => {
+    if (manualChallengeTimeoutRef.current) {
+      clearTimeout(manualChallengeTimeoutRef.current);
+      manualChallengeTimeoutRef.current = null;
+    }
+    if (cfCheckIntervalRef.current) {
+      clearInterval(cfCheckIntervalRef.current);
+      cfCheckIntervalRef.current = null;
+    }
+  }, []);
+
   // Get invalidateSession from SessionContext
   const { invalidateSession } = useSession();
+
+  // Check for successful CF challenge completion (cf_clearance cookie)
+  const checkForCfClearance = useCallback(async (url: string): Promise<{
+    success: boolean;
+    cookies?: string;
+  }> => {
+    try {
+      const domain = new URL(url).hostname;
+      const cookiesArray = await CookieManagerInstance.extractFromWebView(url);
+      const hasCfClearance = cookiesArray.some((c) => c.name === "cf_clearance");
+      
+      if (hasCfClearance) {
+        await CookieManagerInstance.setCookies(domain, cookiesArray);
+        const cookieString = await CookieManagerInstance.getCookies(domain);
+        return { success: true, cookies: cookieString || undefined };
+      }
+      return { success: false };
+    } catch {
+      return { success: false };
+    }
+  }, []);
 
   // Manual challenge handler - called by CloudflareInterceptor when auto-bypass fails
   const handleManualChallenge = useCallback(
@@ -501,9 +536,37 @@ export function WebViewFetcherProvider({
         console.log("[WebViewFetcher] Manual challenge requested for:", url);
         manualChallengeResolveRef.current = resolve;
         setManualChallengeUrl(url);
+
+        // Start 90-second timeout
+        manualChallengeTimeoutRef.current = setTimeout(async () => {
+          console.log("[WebViewFetcher] Manual challenge timeout (90s)");
+          const result = await checkForCfClearance(url);
+          clearManualChallengeTimers();
+          
+          if (manualChallengeResolveRef.current) {
+            manualChallengeResolveRef.current(result);
+            manualChallengeResolveRef.current = null;
+          }
+          setManualChallengeUrl(null);
+        }, 90000);
+
+        // Start polling every 5 seconds for cf_clearance
+        cfCheckIntervalRef.current = setInterval(async () => {
+          const result = await checkForCfClearance(url);
+          if (result.success) {
+            console.log("[WebViewFetcher] cf_clearance detected, auto-dismissing");
+            clearManualChallengeTimers();
+            
+            if (manualChallengeResolveRef.current) {
+              manualChallengeResolveRef.current(result);
+              manualChallengeResolveRef.current = null;
+            }
+            setManualChallengeUrl(null);
+          }
+        }, 5000);
       });
     },
-    []
+    [checkForCfClearance, clearManualChallengeTimers]
   );
 
   // Handle manual challenge completion (user presses Done)
@@ -511,6 +574,8 @@ export function WebViewFetcherProvider({
     if (!manualChallengeUrl) return;
 
     console.log("[WebViewFetcher] User pressed Done, extracting cookies...");
+    clearManualChallengeTimers();
+    
     const domain = new URL(manualChallengeUrl).hostname;
 
     try {
@@ -545,17 +610,19 @@ export function WebViewFetcherProvider({
     }
 
     setManualChallengeUrl(null);
-  }, [manualChallengeUrl]);
+  }, [manualChallengeUrl, clearManualChallengeTimers]);
 
   // Handle manual challenge cancel
   const handleManualChallengeCancel = useCallback(() => {
     console.log("[WebViewFetcher] User cancelled manual challenge");
+    clearManualChallengeTimers();
+    
     if (manualChallengeResolveRef.current) {
       manualChallengeResolveRef.current({ success: false });
       manualChallengeResolveRef.current = null;
     }
     setManualChallengeUrl(null);
-  }, []);
+  }, [clearManualChallengeTimers]);
 
   // Register manual challenge handler with CloudflareInterceptor
   useEffect(() => {
