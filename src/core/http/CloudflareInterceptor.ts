@@ -4,9 +4,11 @@ import type {
   AxiosRequestConfig,
   AxiosResponse,
 } from "axios";
+import { Platform } from "react-native";
 import { WebViewFetcherService } from "./WebViewFetcherService";
 import { CookieManagerInstance } from "./CookieManager";
 import { CloudflareBypassException, ManualChallengeHandler } from "./types";
+import CookieSync from "cookie-sync";
 
 const MAX_CF_RETRIES = 1; // Try once and fail fast
 
@@ -72,26 +74,36 @@ async function solveCfChallengeAuto(
   const timeout = 30000 + attempt * 10000;
   const html = await WebViewFetcherService.fetchHtml(url, timeout);
 
-  // Extract cookies from WebView
-  const cookiesArray = await CookieManagerInstance.extractFromWebView(url);
+  let hasCfClearance = false;
+  let cookieString = "";
 
-  // Check if we got CF clearance cookie
-  const hasCfClearance = cookiesArray.some((c) => c.name === "cf_clearance");
+  // Use native module on iOS for reliable cookie extraction from WKWebView
+  if (Platform.OS === "ios") {
+    hasCfClearance = await CookieSync.hasCfClearance(url);
+    if (hasCfClearance) {
+      cookieString = await CookieSync.getCookieString(url);
+      await CookieSync.syncCookiesToNative(url);
+      await CookieManagerInstance.cacheCookieString(domain, cookieString);
+    }
+  } else {
+    // Android: use JS-based extraction (works fine)
+    const cookiesArray = await CookieManagerInstance.extractFromWebView(url);
+    hasCfClearance = cookiesArray.some((c) => c.name === "cf_clearance");
+    if (hasCfClearance) {
+      await CookieManagerInstance.setCookies(domain, cookiesArray);
+      cookieString = (await CookieManagerInstance.getCookies(domain)) || "";
+    }
+  }
+
   if (!hasCfClearance) {
     throw new Error("Failed to obtain CF clearance cookie");
   }
-
-  // Store cookies
-  await CookieManagerInstance.setCookies(domain, cookiesArray);
-
-  // Get cookie string for request
-  const cookieString = await CookieManagerInstance.getCookies(domain);
 
   console.log(`[CF Interceptor] Successfully solved challenge for ${domain}`);
 
   return {
     html,
-    cookies: cookieString || "",
+    cookies: cookieString,
   };
 }
 
