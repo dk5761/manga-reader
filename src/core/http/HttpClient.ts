@@ -88,12 +88,15 @@ class HttpClientClass {
         return response;
       },
       (error) => {
-        console.error(
-          "[HTTP] ✗",
-          error.response?.status || "NETWORK",
-          error.config?.url?.substring(0, 60),
-          error.message
-        );
+        // Only log non-CF errors (CF errors already logged by interceptor)
+        if (error?.name !== "CloudflareBypassException") {
+          console.error(
+            "[HTTP] ✗",
+            error.response?.status || "NETWORK",
+            error.config?.url?.substring(0, 60),
+            error.message
+          );
+        }
         return Promise.reject(error);
       }
     );

@@ -59,13 +59,19 @@ export function SourceBrowseScreen() {
     }
   }, [debouncedSearchQuery]);
 
-  // Queries - wait for session to be ready before fetching
-  const popularQuery = usePopularManga(sourceId || "", sessionReady);
-  const latestQuery = useLatestManga(sourceId || "", sessionReady);
+  // Queries - only enable the active tab's query
+  const popularQuery = usePopularManga(
+    sourceId || "",
+    sessionReady && activeTab === "popular" && !isSearching
+  );
+  const latestQuery = useLatestManga(
+    sourceId || "",
+    sessionReady && activeTab === "latest" && !isSearching
+  );
   const searchQueryResult = useSearchManga(
     sourceId || "",
     isSearching ? debouncedSearchQuery : "",
-    sessionReady
+    sessionReady && isSearching
   );
 
   const handleSearch = useCallback(() => {
