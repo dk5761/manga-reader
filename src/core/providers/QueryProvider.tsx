@@ -14,7 +14,7 @@ export function QueryProvider({ children }: QueryProviderProps) {
             // Good defaults for mobile
             staleTime: 1000 * 60 * 5, // 5 minutes
             gcTime: 1000 * 60 * 30, // 30 minutes (formerly cacheTime)
-            retry: 2,
+            retry: 1, // Reduced from 2 to minimize CF bypass attempts
             refetchOnWindowFocus: false, // Not needed on mobile
             refetchOnReconnect: true,
             // Don't throw errors to error boundaries - handle in UI instead

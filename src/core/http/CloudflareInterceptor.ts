@@ -9,7 +9,7 @@ import { WebViewFetcherService } from "./WebViewFetcherService";
 import { CookieManagerInstance } from "./CookieManager";
 import { CloudflareBypassException } from "./types";
 
-const MAX_CF_RETRIES = 3;
+const MAX_CF_RETRIES = 1; // Try once and fail fast
 const CF_RETRY_DELAYS = [2000, 5000, 10000]; // Exponential backoff
 
 /**
@@ -119,6 +119,12 @@ export function setupCloudflareInterceptor(axiosInstance: AxiosInstance): void {
   // Track retry attempts per request
   const retryMap = new Map<string, number>();
 
+  // Track ongoing CF solves to prevent duplicates
+  const ongoingSolves = new Map<
+    string,
+    Promise<{ html: string; cookies: string }>
+  >();
+
   // Response interceptor - detects CF challenges
   axiosInstance.interceptors.response.use(
     // Success - pass through
@@ -147,6 +153,7 @@ export function setupCloudflareInterceptor(axiosInstance: AxiosInstance): void {
         // Prevent infinite retry loop
         if (currentRetries >= MAX_CF_RETRIES) {
           retryMap.delete(requestKey);
+          ongoingSolves.delete(requestKey);
           return Promise.reject(
             new CloudflareBypassException(
               `CF bypass retry limit exceeded for ${config.url}`,
@@ -159,11 +166,25 @@ export function setupCloudflareInterceptor(axiosInstance: AxiosInstance): void {
         retryMap.set(requestKey, currentRetries + 1);
 
         try {
-          // Solve CF challenge
-          const { cookies } = await solveCfChallenge(
-            config as AxiosRequestConfig,
-            1
-          );
+          // Check if we're already solving this URL
+          let solvePromise = ongoingSolves.get(requestKey);
+
+          if (!solvePromise) {
+            // Start new solve
+            console.log(`[CF Interceptor] Starting CF solve for ${requestKey}`);
+            solvePromise = solveCfChallenge(config as AxiosRequestConfig, 1);
+            ongoingSolves.set(requestKey, solvePromise);
+          } else {
+            console.log(
+              `[CF Interceptor] Reusing ongoing CF solve for ${requestKey}`
+            );
+          }
+
+          // Wait for solve to complete
+          const { cookies } = await solvePromise;
+
+          // Clean up
+          ongoingSolves.delete(requestKey);
 
           // Update request config with cookies
           const retryConfig = {
@@ -181,8 +202,9 @@ export function setupCloudflareInterceptor(axiosInstance: AxiosInstance): void {
           console.log(`[CF Interceptor] Retrying request with cookies...`);
           return axiosInstance.request(retryConfig);
         } catch (cfError) {
-          // Clear retry counter
+          // Clear tracking
           retryMap.delete(requestKey);
+          ongoingSolves.delete(requestKey);
 
           // If CF solving failed, reject with CF exception
           return Promise.reject(cfError);
