@@ -1,5 +1,5 @@
-import { ReaderScreen } from "@/features/Reader";
+import { MihonReaderScreen } from "@/features/MihonReader";
 
 export default function ReaderRoute() {
-  return <ReaderScreen />;
+  return <MihonReaderScreen />;
 }
