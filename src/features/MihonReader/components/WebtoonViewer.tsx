@@ -1,4 +1,4 @@
-import { useCallback, useRef, memo, useMemo } from "react";
+import { useCallback, useRef, memo, useMemo, useEffect } from "react";
 import {
   Dimensions,
   NativeScrollEvent,
@@ -16,7 +16,10 @@ import { useViewerStore } from "../store/viewer.store";
 import { getItemKey, findInitialScrollIndex } from "../utils";
 import type { AdapterItem, ReaderChapter } from "../models";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+// Threshold before we consider user has intentionally scrolled
+const SCROLL_ACTIVATION_THRESHOLD = 100;
 
 interface WebtoonViewerProps {
   onChapterChange: (chapter: ReaderChapter) => void;
@@ -34,7 +37,14 @@ function WebtoonViewerComponent({
   onRetryChapter,
 }: WebtoonViewerProps) {
   const listRef = useRef<any>(null);
-  const lastViewedIndexRef = useRef(0);
+
+  // Scroll activation tracking - prevents page updates until user intentionally scrolls
+  const hasUserScrolledRef = useRef(false);
+  const initialScrollOffsetRef = useRef<number | null>(null);
+  const lastReportedPageRef = useRef<{ page: number; chapterId: string }>({
+    page: 0,
+    chapterId: "",
+  });
 
   // Build items from viewerChapters
   const items = useViewerAdapter();
@@ -42,6 +52,7 @@ function WebtoonViewerComponent({
   // Store state
   const viewerChapters = useViewerStore((s) => s.viewerChapters);
   const toggleMenu = useViewerStore((s) => s.toggleMenu);
+  const setCurrentPage = useViewerStore((s) => s.setCurrentPage);
 
   // Page tracking
   const trackingCallbacks: PageTrackingCallbacks = useMemo(
@@ -67,6 +78,31 @@ function WebtoonViewerComponent({
       viewerChapters.curr.requestedPage
     );
   }, [items, viewerChapters]);
+
+  // Set initial page correctly on mount
+  useEffect(() => {
+    if (viewerChapters && items.length > 0) {
+      const currPages =
+        viewerChapters.curr.state.status === "loaded"
+          ? viewerChapters.curr.state.pages
+          : [];
+      const totalPages = currPages.length;
+      const initialPage = viewerChapters.curr.requestedPage + 1 || 1;
+
+      // Set initial page
+      setCurrentPage(initialPage, totalPages);
+      lastReportedPageRef.current = {
+        page: initialPage,
+        chapterId: viewerChapters.curr.chapter.id,
+      };
+    }
+  }, [viewerChapters?.curr.chapter.id]); // Only on chapter change
+
+  // Reset scroll tracking when items change
+  useEffect(() => {
+    hasUserScrolledRef.current = false;
+    initialScrollOffsetRef.current = null;
+  }, [items.length]);
 
   // Handle tap on page/transition
   const handleTap = useCallback(() => {
@@ -106,41 +142,86 @@ function WebtoonViewerComponent({
     []
   );
 
-  // Handle scroll events - track viewable items manually
+  // Handle scroll events
   const onScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       handleScroll(event);
 
-      // Approximate which item is visible based on scroll position
       const offsetY = event.nativeEvent.contentOffset.y;
       const layoutHeight = event.nativeEvent.layoutMeasurement.height;
-      const avgItemHeight = SCREEN_HEIGHT * 0.8;
+      const contentHeight = event.nativeEvent.contentSize.height;
 
-      // Calculate visible range
-      const firstVisibleIndex = Math.floor(offsetY / avgItemHeight);
-      const lastVisibleIndex = Math.ceil(
-        (offsetY + layoutHeight) / avgItemHeight
-      );
+      // Capture initial scroll position on first scroll event
+      if (initialScrollOffsetRef.current === null) {
+        initialScrollOffsetRef.current = offsetY;
+      }
 
-      // If changed, trigger viewable items callback
-      if (lastVisibleIndex !== lastViewedIndexRef.current && items.length > 0) {
-        lastViewedIndexRef.current = lastVisibleIndex;
+      // Detect if user has scrolled past threshold
+      const scrollDelta = Math.abs(offsetY - initialScrollOffsetRef.current);
+      if (scrollDelta > SCROLL_ACTIVATION_THRESHOLD) {
+        hasUserScrolledRef.current = true;
+      }
 
-        const viewableItems = [];
-        for (
-          let i = Math.max(0, firstVisibleIndex);
-          i <= Math.min(lastVisibleIndex, items.length - 1);
-          i++
-        ) {
-          viewableItems.push({ item: items[i], index: i });
+      // Skip page tracking if user hasn't scrolled intentionally
+      if (!hasUserScrolledRef.current) {
+        return;
+      }
+
+      // Calculate which item is at the center of the viewport
+      if (items.length === 0 || contentHeight === 0) return;
+
+      // Use center of viewport for page detection
+      const viewportCenter = offsetY + layoutHeight * 0.3;
+      const avgItemHeight = contentHeight / items.length;
+      const centerIndex = Math.floor(viewportCenter / avgItemHeight);
+      const clampedIndex = Math.max(0, Math.min(centerIndex, items.length - 1));
+
+      const currentItem = items[clampedIndex];
+      if (!currentItem) return;
+
+      // Only update if it's a page and different from last reported
+      if (currentItem.type === "page") {
+        const pageNum = currentItem.index + 1;
+        const chapterId = currentItem.chapterId;
+
+        // Find total pages for this chapter
+        let totalPages = 0;
+        if (viewerChapters) {
+          let chapter = null;
+          if (viewerChapters.prev?.chapter.id === chapterId) {
+            chapter = viewerChapters.prev;
+          } else if (viewerChapters.curr.chapter.id === chapterId) {
+            chapter = viewerChapters.curr;
+          } else if (viewerChapters.next?.chapter.id === chapterId) {
+            chapter = viewerChapters.next;
+          }
+          if (chapter?.state.status === "loaded") {
+            totalPages = chapter.state.pages.length;
+          }
         }
 
-        if (viewableItems.length > 0) {
-          handleViewableItemsChanged({ viewableItems });
+        // Only update if changed
+        if (
+          pageNum !== lastReportedPageRef.current.page ||
+          chapterId !== lastReportedPageRef.current.chapterId
+        ) {
+          lastReportedPageRef.current = { page: pageNum, chapterId };
+          setCurrentPage(pageNum, totalPages);
+
+          // Also trigger viewable items changed for chapter tracking
+          handleViewableItemsChanged({
+            viewableItems: [{ item: currentItem, index: clampedIndex }],
+          });
         }
       }
     },
-    [handleScroll, handleViewableItemsChanged, items]
+    [
+      handleScroll,
+      handleViewableItemsChanged,
+      items,
+      viewerChapters,
+      setCurrentPage,
+    ]
   );
 
   if (items.length === 0) {
