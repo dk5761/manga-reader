@@ -109,16 +109,6 @@ function WebtoonViewerComponent({
     toggleMenu();
   }, [toggleMenu]);
 
-  // Handle retry for transitions
-  const handleRetry = useCallback(
-    (transition: AdapterItem) => {
-      if (transition.type === "transition" && transition.to) {
-        onRetryChapter(transition.to);
-      }
-    },
-    [onRetryChapter]
-  );
-
   // Render item
   const renderItem = useCallback(
     ({ item }: { item: AdapterItem }) => {
@@ -129,11 +119,11 @@ function WebtoonViewerComponent({
         <TransitionHolder
           transition={item}
           onTap={handleTap}
-          onRetry={() => handleRetry(item)}
+          onLoadChapter={item.to ? () => onRetryChapter(item.to!) : undefined}
         />
       );
     },
-    [handleTap, handleRetry]
+    [handleTap, onRetryChapter]
   );
 
   // Key extractor

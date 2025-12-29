@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getSource } from "@/sources";
 import type { Page } from "@/sources";
 import { useViewerStore } from "../store/viewer.store";
-import type { ReaderChapter, ChapterState } from "../models";
+import type { ReaderChapter } from "../models";
 import { createReaderPages } from "../models";
 
 /**
@@ -11,7 +11,6 @@ import { createReaderPages } from "../models";
  * Matches Mihon's ChapterLoader.loadChapter() logic.
  */
 export function useChapterLoader() {
-  const sourceId = useViewerStore((s) => s.sourceId);
   const updateChapterState = useViewerStore((s) => s.updateChapterState);
   const queryClient = useQueryClient();
 
@@ -37,11 +36,21 @@ export function useChapterLoader() {
         return;
       }
 
+      // Get sourceId from store at call time (not hook creation time)
+      const sourceId = useViewerStore.getState().sourceId;
+
+      console.log("[useChapterLoader] Loading chapter:", {
+        chapterId,
+        chapterUrl,
+        sourceId,
+      });
+
       const source = getSource(sourceId);
       if (!source) {
+        console.error("[useChapterLoader] Source not found:", sourceId);
         updateChapterState(chapterId, {
           status: "error",
-          error: `Source ${sourceId} not found`,
+          error: `Source "${sourceId}" not found`,
         });
         return;
       }
@@ -60,9 +69,14 @@ export function useChapterLoader() {
         let pages: Page[];
 
         if (cachedPages) {
+          console.log(
+            "[useChapterLoader] Using cached pages:",
+            cachedPages.length
+          );
           pages = cachedPages;
         } else {
           // Fetch from source
+          console.log("[useChapterLoader] Fetching pages from source");
           pages = await source.getPageList(chapterUrl);
 
           // Cache the result
@@ -72,11 +86,13 @@ export function useChapterLoader() {
         // Convert to ReaderPages
         const readerPages = createReaderPages(pages, chapterId);
 
+        console.log("[useChapterLoader] Loaded pages:", readerPages.length);
         updateChapterState(chapterId, {
           status: "loaded",
           pages: readerPages,
         });
       } catch (error) {
+        console.error("[useChapterLoader] Error loading chapter:", error);
         const message =
           error instanceof Error ? error.message : "Failed to load chapter";
         updateChapterState(chapterId, {
@@ -87,7 +103,7 @@ export function useChapterLoader() {
         loadingRef.current.delete(chapterId);
       }
     },
-    [sourceId, updateChapterState, queryClient]
+    [updateChapterState, queryClient]
   );
 
   /**

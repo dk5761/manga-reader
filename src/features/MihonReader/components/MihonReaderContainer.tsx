@@ -124,7 +124,7 @@ export function MihonReaderContainer() {
 
   const currentChapterIndex = chapters?.findIndex((ch) => ch.url === url) ?? -1;
 
-  // Initialize store when data is ready
+  // Initialize store when pages are ready (chapters list may not be loaded yet)
   useEffect(() => {
     if (
       !hasInitializedRef.current &&
@@ -139,7 +139,7 @@ export function MihonReaderContainer() {
       const currPages = createReaderPages(initialPages, currentChapter.id);
       currReaderChapter.state = { status: "loaded", pages: currPages };
 
-      // Create ReaderChapters for prev/next (if available)
+      // Create ReaderChapters for prev/next (if chapters list is available)
       let prevReaderChapter: ReaderChapter | null = null;
       let nextReaderChapter: ReaderChapter | null = null;
 
@@ -157,7 +157,7 @@ export function MihonReaderContainer() {
         }
       }
 
-      const viewerChapters: ViewerChapters = {
+      const initialViewerChapters: ViewerChapters = {
         prev: prevReaderChapter,
         curr: currReaderChapter,
         next: nextReaderChapter,
@@ -168,6 +168,7 @@ export function MihonReaderContainer() {
         currPages: currPages.length,
         prev: prevReaderChapter?.chapter.id,
         next: nextReaderChapter?.chapter.id,
+        chaptersLoaded: !!chapters,
       });
 
       init({
@@ -175,7 +176,7 @@ export function MihonReaderContainer() {
         sourceId: sourceId || "",
         mangaTitle: mangaTitle || "",
         mangaUrl: mangaUrl || "",
-        viewerChapters,
+        viewerChapters: initialViewerChapters,
       });
 
       // Preload adjacent chapters after init
@@ -198,6 +199,68 @@ export function MihonReaderContainer() {
     mangaTitle,
     mangaUrl,
     init,
+    preloadChapter,
+  ]);
+
+  // Update viewerChapters when chapters list loads (after initial page load)
+  // This handles the case where pages loaded before chapter list
+  useEffect(() => {
+    if (
+      isInitialized &&
+      chapters &&
+      chapters.length > 0 &&
+      currentChapterIndex >= 0 &&
+      viewerChapters
+    ) {
+      // Check if we need to update prev/next chapters
+      const needsUpdate =
+        (!viewerChapters.prev && currentChapterIndex < chapters.length - 1) ||
+        (!viewerChapters.next && currentChapterIndex > 0);
+
+      if (needsUpdate) {
+        console.log("[MihonReaderContainer] Updating with chapters list:", {
+          currentChapterIndex,
+          totalChapters: chapters.length,
+        });
+
+        // Find prev/next chapters
+        const prevChapter = chapters[currentChapterIndex + 1];
+        const nextChapter = chapters[currentChapterIndex - 1];
+
+        const updatedViewerChapters: ViewerChapters = {
+          prev: prevChapter
+            ? viewerChapters.prev ?? createReaderChapter(prevChapter)
+            : null,
+          curr: viewerChapters.curr,
+          next: nextChapter
+            ? viewerChapters.next ?? createReaderChapter(nextChapter)
+            : null,
+        };
+
+        console.log("[MihonReaderContainer] Updated viewerChapters:", {
+          prev: updatedViewerChapters.prev?.chapter.id,
+          next: updatedViewerChapters.next?.chapter.id,
+        });
+
+        setViewerChapters(updatedViewerChapters);
+
+        // Preload newly discovered adjacent chapters
+        setTimeout(() => {
+          if (updatedViewerChapters.prev?.state.status === "wait") {
+            preloadChapter(updatedViewerChapters.prev);
+          }
+          if (updatedViewerChapters.next?.state.status === "wait") {
+            preloadChapter(updatedViewerChapters.next);
+          }
+        }, 100);
+      }
+    }
+  }, [
+    isInitialized,
+    chapters,
+    currentChapterIndex,
+    viewerChapters,
+    setViewerChapters,
     preloadChapter,
   ]);
 

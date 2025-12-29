@@ -1,83 +1,52 @@
-import type {
-  ViewerChapters,
-  AdapterItem,
-  ReaderChapter,
-  ReaderPage,
-} from "../models";
+import type { ViewerChapters, AdapterItem } from "../models";
 import {
   createPrevTransition,
   createNextTransition,
   getChapterPages,
 } from "../models";
-import { calculateChapterGap } from "./chapterGap";
 
 /**
  * Build the flat list of adapter items for the virtualized list.
- * Matches Mihon's WebtoonAdapter.setChapters() logic.
  *
  * The list structure:
- * 1. Last 2 pages of prev chapter (for smooth scroll back)
- * 2. Prev transition (if needed)
- * 3. All current chapter pages
- * 4. Next transition (if needed)
- * 5. First 2 pages of next chapter (for smooth scroll forward)
+ * 1. Prev transition (chapter start divider)
+ * 2. All current chapter pages
+ * 3. Next transition (chapter end divider)
+ * 4. First few pages of next chapter (for seamless scroll into next)
+ *
+ * When user scrolls into the next chapter's pages, the container should
+ * detect this and call setViewerChapters to make next the new current.
  *
  * @param viewerChapters The three-chapter window
- * @param forceTransition Always show transitions (e.g., when on a transition)
  * @returns Flat array of items to render
  */
 export function buildAdapterItems(
-  viewerChapters: ViewerChapters,
-  forceTransition = false
+  viewerChapters: ViewerChapters
 ): AdapterItem[] {
   const { prev, curr, next } = viewerChapters;
   const items: AdapterItem[] = [];
 
-  // === 1. Last 2 pages of prev chapter ===
-  if (prev) {
-    const prevPages = getChapterPages(prev);
-    if (prevPages && prevPages.length > 0) {
-      // Take last 2 pages for seamless backward scroll
-      items.push(...prevPages.slice(-2));
-    }
-  }
+  // === 1. Prev transition (chapter start divider) ===
+  // Always show so user knows they're at the start of a chapter
+  items.push(createPrevTransition(curr, prev));
 
-  // === 2. Prev transition ===
-  const prevGap = calculateChapterGap(curr, prev);
-  const showPrevTransition =
-    prevGap > 0 || // Missing chapters between
-    forceTransition || // Forced display
-    !prev || // No previous chapter
-    prev.state.status !== "loaded"; // Prev not loaded yet
-
-  if (showPrevTransition) {
-    items.push(createPrevTransition(curr, prev));
-  }
-
-  // === 3. All current chapter pages ===
+  // === 2. All current chapter pages ===
   const currPages = getChapterPages(curr);
   if (currPages && currPages.length > 0) {
     items.push(...currPages);
   }
 
-  // === 4. Next transition ===
-  const nextGap = calculateChapterGap(next, curr);
-  const showNextTransition =
-    nextGap > 0 || // Missing chapters between
-    forceTransition || // Forced display
-    !next || // No next chapter
-    next.state.status !== "loaded"; // Next not loaded yet
+  // === 3. Next transition (chapter end divider) ===
+  // Always show so user knows they're at the end of a chapter
+  items.push(createNextTransition(curr, next));
 
-  if (showNextTransition) {
-    items.push(createNextTransition(curr, next));
-  }
-
-  // === 5. First 2 pages of next chapter ===
+  // === 4. Next chapter pages (for seamless forward scroll) ===
+  // Add ALL pages of next chapter when loaded, so user can scroll into them
+  // The chapter change will be detected and viewerChapters will update
   if (next) {
     const nextPages = getChapterPages(next);
     if (nextPages && nextPages.length > 0) {
-      // Take first 2 pages for seamless forward scroll
-      items.push(...nextPages.slice(0, 2));
+      items.push(...nextPages);
     }
   }
 
@@ -86,7 +55,7 @@ export function buildAdapterItems(
 
 /**
  * Find the scroll index to start at for the current chapter.
- * This accounts for any prev chapter pages and the prev transition.
+ * This accounts for the prev transition at the start.
  *
  * @param items The adapter items array
  * @param currChapterId The current chapter's ID
@@ -129,20 +98,6 @@ export function getItemKey(item: AdapterItem, index: number): string {
   const fromId = item.from.chapter.id;
   const toId = item.to?.chapter.id ?? "none";
   return `transition-${item.direction}-${fromId}-${toId}`;
-}
-
-/**
- * Find which chapter a given item belongs to.
- * For pages, it's the page's chapter.
- * For transitions, it's the 'from' chapter (current chapter context).
- */
-export function getItemChapter(item: AdapterItem): ReaderChapter {
-  if (item.type === "page") {
-    // We need to look up the chapter - for now return from context
-    // This will be handled by the component that has access to viewerChapters
-    throw new Error("Use getItemChapterId instead");
-  }
-  return item.from;
 }
 
 /**
