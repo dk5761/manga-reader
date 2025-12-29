@@ -182,6 +182,7 @@ export function WebViewFetcherProvider({
   const cfCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null
   );
+  const [isVerifying, setIsVerifying] = useState(false);
 
   // Process next request in queue
   const processNextRequest = useCallback(() => {
@@ -523,6 +524,21 @@ export function WebViewFetcherProvider({
     }> => {
       try {
         const domain = new URL(url).hostname;
+
+        // Use native module on iOS for reliable cookie extraction
+        if (Platform.OS === "ios") {
+          const hasCfClearance = await CookieSync.hasCfClearance(url);
+          if (hasCfClearance) {
+            const cookieString = await CookieSync.getCookieString(url);
+            await CookieSync.syncCookiesToNative(url);
+            // Cache for persistence across app restarts
+            await CookieManagerInstance.cacheCookieString(domain, cookieString);
+            return { success: true, cookies: cookieString || undefined };
+          }
+          return { success: false };
+        }
+
+        // Android: use existing method
         const cookiesArray = await CookieManagerInstance.extractFromWebView(
           url
         );
@@ -564,22 +580,29 @@ export function WebViewFetcherProvider({
           setManualChallengeUrl(null);
         }, 90000);
 
-        // Start polling every 5 seconds for cf_clearance
-        cfCheckIntervalRef.current = setInterval(async () => {
-          const result = await checkForCfClearance(url);
-          if (result.success) {
-            console.log(
-              "[WebViewFetcher] cf_clearance detected, auto-dismissing"
-            );
-            clearManualChallengeTimers();
+        // Wait 5 seconds before starting polling (let user see the challenge)
+        // This prevents auto-dismiss from detecting stale cookies immediately
+        setTimeout(() => {
+          // Only start polling if modal is still open
+          if (!manualChallengeResolveRef.current) return;
 
-            if (manualChallengeResolveRef.current) {
-              manualChallengeResolveRef.current(result);
-              manualChallengeResolveRef.current = null;
+          console.log("[WebViewFetcher] Starting cf_clearance polling...");
+          cfCheckIntervalRef.current = setInterval(async () => {
+            const result = await checkForCfClearance(url);
+            if (result.success) {
+              console.log(
+                "[WebViewFetcher] cf_clearance detected, auto-dismissing"
+              );
+              clearManualChallengeTimers();
+
+              if (manualChallengeResolveRef.current) {
+                manualChallengeResolveRef.current(result);
+                manualChallengeResolveRef.current = null;
+              }
+              setManualChallengeUrl(null);
             }
-            setManualChallengeUrl(null);
-          }
-        }, 5000);
+          }, 2000);
+        }, 5000); // 5-second delay before starting polling
       });
     },
     [checkForCfClearance, clearManualChallengeTimers]
@@ -591,30 +614,54 @@ export function WebViewFetcherProvider({
 
     console.log("[WebViewFetcher] User pressed Done, extracting cookies...");
     clearManualChallengeTimers();
+    setIsVerifying(true);
 
     const domain = new URL(manualChallengeUrl).hostname;
+    const MAX_ATTEMPTS = 3;
+    const RETRY_DELAY_MS = 500;
 
     try {
       let hasCfClearance = false;
       let cookieString: string | undefined;
 
-      // Use native module on iOS for reliable cookie extraction from WKWebView
-      if (Platform.OS === "ios") {
-        console.log("[WebViewFetcher] Using native CookieSync for iOS...");
-        cookieString = await CookieSync.getCookieString(manualChallengeUrl);
-        hasCfClearance = await CookieSync.hasCfClearance(manualChallengeUrl);
+      // Retry logic - attempt extraction multiple times with delay
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        // Wait before each attempt to allow cookie to be written
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
 
-        // Also sync to native storage for potential URLSession usage
-        await CookieSync.syncCookiesToNative(manualChallengeUrl);
-      } else {
-        // Android: use existing method (works fine)
-        const cookiesArray = await CookieManagerInstance.extractFromWebView(
-          manualChallengeUrl
+        console.log(
+          `[WebViewFetcher] Cookie extraction attempt ${attempt}/${MAX_ATTEMPTS}`
         );
-        await CookieManagerInstance.setCookies(domain, cookiesArray);
-        cookieString =
-          (await CookieManagerInstance.getCookies(domain)) || undefined;
-        hasCfClearance = cookiesArray.some((c) => c.name === "cf_clearance");
+
+        // Use native module on iOS for reliable cookie extraction from WKWebView
+        if (Platform.OS === "ios") {
+          hasCfClearance = await CookieSync.hasCfClearance(manualChallengeUrl);
+          if (hasCfClearance) {
+            cookieString = await CookieSync.getCookieString(manualChallengeUrl);
+            // Sync to native storage and cache for persistence
+            await CookieSync.syncCookiesToNative(manualChallengeUrl);
+            await CookieManagerInstance.cacheCookieString(domain, cookieString);
+            break;
+          }
+        } else {
+          // Android: use existing method (works fine)
+          const cookiesArray = await CookieManagerInstance.extractFromWebView(
+            manualChallengeUrl
+          );
+          hasCfClearance = cookiesArray.some((c) => c.name === "cf_clearance");
+          if (hasCfClearance) {
+            await CookieManagerInstance.setCookies(domain, cookiesArray);
+            cookieString =
+              (await CookieManagerInstance.getCookies(domain)) || undefined;
+            break;
+          }
+        }
+
+        if (attempt === MAX_ATTEMPTS && !hasCfClearance) {
+          console.log(
+            `[WebViewFetcher] cf_clearance not found after ${MAX_ATTEMPTS} attempts`
+          );
+        }
       }
 
       console.log(
@@ -635,6 +682,8 @@ export function WebViewFetcherProvider({
         manualChallengeResolveRef.current({ success: false });
         manualChallengeResolveRef.current = null;
       }
+    } finally {
+      setIsVerifying(false);
     }
 
     setManualChallengeUrl(null);
@@ -705,16 +754,31 @@ export function WebViewFetcherProvider({
             <Pressable
               onPress={handleManualChallengeCancel}
               style={styles.modalButton}
+              disabled={isVerifying}
             >
-              <Text style={styles.modalButtonText}>Cancel</Text>
+              <Text
+                style={[
+                  styles.modalButtonText,
+                  isVerifying && styles.modalButtonDisabled,
+                ]}
+              >
+                Cancel
+              </Text>
             </Pressable>
             <Text style={styles.modalTitle}>Complete Verification</Text>
             <Pressable
               onPress={handleManualChallengeDone}
               style={[styles.modalButton, styles.modalDoneButton]}
+              disabled={isVerifying}
             >
-              <Text style={[styles.modalButtonText, styles.modalDoneText]}>
-                Done
+              <Text
+                style={[
+                  styles.modalButtonText,
+                  styles.modalDoneText,
+                  isVerifying && styles.modalButtonDisabled,
+                ]}
+              >
+                {isVerifying ? "Verifying..." : "Done"}
               </Text>
             </Pressable>
           </View>
@@ -823,6 +887,9 @@ const styles = StyleSheet.create({
   modalDoneText: {
     color: "#fff",
     fontWeight: "600",
+  },
+  modalButtonDisabled: {
+    opacity: 0.5,
   },
   modalWebview: {
     flex: 1,

@@ -157,6 +157,33 @@ class CookieManagerClass {
   }
 
   /**
+   * Cache cookie string directly (for native module on iOS)
+   * This persists the cookie string without needing individual cookie objects
+   */
+  async cacheCookieString(domain: string, cookieString: string): Promise<void> {
+    if (!cookieString) return;
+
+    // Parse cookie string to check for cf_clearance
+    const hasCfClearance = cookieString.includes("cf_clearance=");
+
+    const stored: StoredCookies = {
+      cookies: [], // Empty - we only have the string from native
+      cookieString,
+      expiry: Date.now() + DEFAULT_EXPIRY_HOURS * 60 * 60 * 1000,
+      domain,
+    };
+
+    this.cookies.set(domain, stored);
+    await this.save();
+
+    console.log(
+      "[CookieManager] Cached cookie string for",
+      domain,
+      hasCfClearance ? "(has cf_clearance)" : ""
+    );
+  }
+
+  /**
    * Check if we have valid CF clearance cookie
    */
   async hasCfClearance(domain: string): Promise<boolean> {
