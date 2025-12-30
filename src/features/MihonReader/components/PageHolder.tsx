@@ -10,7 +10,10 @@ import {
 import { MangaImage } from "@/shared/components/MangaImage";
 import type { ReaderPage } from "../models";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+// Minimum height for page container (80% of screen like Mihon)
+const MIN_PAGE_HEIGHT = SCREEN_HEIGHT * 0.8;
 
 interface PageHolderProps {
   page: ReaderPage;
@@ -20,7 +23,7 @@ interface PageHolderProps {
 
 /**
  * PageHolder - Renders a single manga page.
- * Matches Mihon's WebtoonPageHolder.
+ * Matches Mihon's WebtoonPageHolder with minimum height placeholder.
  */
 function PageHolderComponent({ page, onTap, onRetry }: PageHolderProps) {
   const [error, setError] = useState(false);

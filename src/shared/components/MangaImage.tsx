@@ -2,7 +2,7 @@ import { useState, useCallback, memo, useEffect, useRef } from "react";
 import { View, ActivityIndicator, StyleSheet, Dimensions } from "react-native";
 import FastImage, { FastImageProps } from "react-native-fast-image";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // CDN fallback list for 2xstorage
 const CDN_HOSTS = [
@@ -12,12 +12,19 @@ const CDN_HOSTS = [
   "img.2xstorage.com",
 ];
 
+// Default aspect ratio for manga pages (portrait)
+const DEFAULT_ASPECT_RATIO = 2 / 3;
+// Minimum placeholder height (80% of screen like Mihon)
+const MIN_PLACEHOLDER_HEIGHT = SCREEN_HEIGHT * 0.8;
+
 type MangaImageProps = {
   uri: string;
   headers?: Record<string, string>;
   style?: FastImageProps["style"];
   resizeMode?: "contain" | "cover" | "stretch" | "center";
   priority?: "low" | "normal" | "high";
+  /** Optional aspect ratio from source (for future Approach D) */
+  sourceAspectRatio?: number;
   onLoad?: () => void;
   onError?: () => void;
   onProgress?: (event: {
@@ -27,14 +34,13 @@ type MangaImageProps = {
 
 /**
  * Unified image component using react-native-fast-image.
- * Replaces ProxiedImage and WebViewImage with native performance.
  *
  * Features:
  * - Native SDWebImage (iOS) / Glide (Android)
  * - CDN fallback for 2xstorage hosts
- * - Custom headers support
- * - Priority-based loading
- * - Efficient caching
+ * - Skeleton placeholder with estimated aspect ratio
+ * - Screen-relative minimum height (Mihon-style)
+ * - Smooth transition from placeholder to image
  */
 function MangaImageComponent({
   uri,
@@ -42,6 +48,7 @@ function MangaImageComponent({
   style,
   resizeMode = "contain",
   priority = "high",
+  sourceAspectRatio,
   onLoad,
   onError,
   onProgress,
@@ -49,7 +56,9 @@ function MangaImageComponent({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [currentUri, setCurrentUri] = useState(uri);
-  const [aspectRatio, setAspectRatio] = useState<number | undefined>(undefined);
+  const [aspectRatio, setAspectRatio] = useState<number>(
+    sourceAspectRatio ?? DEFAULT_ASPECT_RATIO
+  );
   const cdnIndexRef = useRef(0);
   const originalHostRef = useRef<string | null>(null);
 
@@ -58,7 +67,7 @@ function MangaImageComponent({
     setLoading(true);
     setError(false);
     setCurrentUri(uri);
-    setAspectRatio(undefined);
+    setAspectRatio(sourceAspectRatio ?? DEFAULT_ASPECT_RATIO);
     cdnIndexRef.current = 0;
 
     try {
@@ -67,7 +76,7 @@ function MangaImageComponent({
     } catch {
       originalHostRef.current = null;
     }
-  }, [uri]);
+  }, [uri, sourceAspectRatio]);
 
   const tryNextCdn = useCallback(() => {
     if (!uri) return;
@@ -106,7 +115,7 @@ function MangaImageComponent({
 
   const handleLoad = useCallback(
     (event: any) => {
-      // Get image dimensions from load event
+      // Get image dimensions from load event and update aspect ratio
       const { width, height } = event.nativeEvent;
       if (width && height) {
         setAspectRatio(width / height);
@@ -153,16 +162,27 @@ function MangaImageComponent({
       ? FastImage.resizeMode.stretch
       : FastImage.resizeMode.center;
 
-  // Use aspect ratio if available, otherwise use default minHeight
-  const imageStyle = aspectRatio
-    ? [styles.image, { aspectRatio }]
-    : [styles.image, styles.imagePlaceholderSize];
+  // Image style with aspect ratio
+  const imageStyle = { width: SCREEN_WIDTH, aspectRatio };
 
   return (
     <View style={[styles.container, style]}>
+      {/* Skeleton placeholder - only show while loading */}
+      {loading && !error && (
+        <View
+          style={[
+            styles.skeleton,
+            { aspectRatio, minHeight: MIN_PLACEHOLDER_HEIGHT },
+          ]}
+        >
+          <ActivityIndicator size="large" color="#555" style={styles.spinner} />
+        </View>
+      )}
+
+      {/* Actual image */}
       {!error && (
         <FastImage
-          style={imageStyle}
+          style={[styles.image, imageStyle]}
           source={{
             uri: currentUri,
             headers: headers,
@@ -176,12 +196,7 @@ function MangaImageComponent({
         />
       )}
 
-      {loading && !error && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color="#888" />
-        </View>
-      )}
-
+      {/* Error state */}
       {error && <View style={styles.errorPlaceholder} />}
     </View>
   );
@@ -192,29 +207,26 @@ const styles = StyleSheet.create({
     width: SCREEN_WIDTH,
     backgroundColor: "#000",
   },
+  skeleton: {
+    width: SCREEN_WIDTH,
+    backgroundColor: "#1a1a1a",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  spinner: {
+    position: "absolute",
+  },
   image: {
     width: SCREEN_WIDTH,
   },
-  imagePlaceholderSize: {
-    minHeight: 600,
-  },
-  loadingContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#000",
-    minHeight: 300,
-  },
   placeholder: {
-    backgroundColor: "#27272a",
+    width: SCREEN_WIDTH,
+    minHeight: MIN_PLACEHOLDER_HEIGHT,
+    backgroundColor: "#1a1a1a",
   },
   errorPlaceholder: {
     width: SCREEN_WIDTH,
-    height: 400,
+    minHeight: MIN_PLACEHOLDER_HEIGHT * 0.8,
     backgroundColor: "#27272a",
   },
 });
