@@ -1,16 +1,19 @@
-import { useCallback, useRef, memo, useMemo, useEffect } from "react";
+import { useCallback, useRef, useMemo, memo, useEffect, useState } from "react";
 import {
+  View,
+  StyleSheet,
   Dimensions,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
 } from "react-native";
 import { LegendList } from "@legendapp/list";
 import { PageHolder } from "./PageHolder";
 import { TransitionHolder } from "./TransitionHolder";
+import { HoldProgressIndicator } from "./HoldProgressIndicator";
 import { useViewerAdapter } from "../hooks/useViewerAdapter";
 import {
   usePageTracking,
-  PageTrackingCallbacks,
+  type PageTrackingCallbacks,
 } from "../hooks/usePageTracking";
 import { useViewerStore } from "../store/viewer.store";
 import { getItemKey, findInitialScrollIndex } from "../utils";
@@ -174,24 +177,104 @@ function WebtoonViewerComponent({
     []
   );
 
-  // Handle scroll events
+  // Pull-and-hold gesture state
+  const overscrollAmountRef = useRef(0);
+  const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const holdStartTimeRef = useRef<number | null>(null);
+  const holdTriggeredRef = useRef(false);
+  const [holdProgress, setHoldProgress] = useState(0);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const OVERSCROLL_THRESHOLD = 150;
+  const HOLD_DURATION = 2000; // 2 seconds
+
+  // Scroll handler
   const onScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset, layoutMeasurement, contentSize } =
+        event.nativeEvent;
+      const offsetY = contentOffset.y;
+      const layoutHeight = layoutMeasurement.height;
+      const contentHeight = contentSize.height;
+
+      // Track scroll position for menu hiding
       handleScroll(event);
 
-      const offsetY = event.nativeEvent.contentOffset.y;
-      const layoutHeight = event.nativeEvent.layoutMeasurement.height;
-      const contentHeight = event.nativeEvent.contentSize.height;
-
-      // Capture initial scroll position on first scroll event
+      // First scroll - initialize tracking
       if (initialScrollOffsetRef.current === null) {
         initialScrollOffsetRef.current = offsetY;
       }
 
       // Detect if user has scrolled past threshold
-      const scrollDelta = Math.abs(offsetY - initialScrollOffsetRef.current);
-      if (scrollDelta > SCROLL_ACTIVATION_THRESHOLD) {
-        hasUserScrolledRef.current = true;
+      if (initialScrollOffsetRef.current !== null) {
+        const scrollDelta = Math.abs(offsetY - initialScrollOffsetRef.current);
+        if (scrollDelta > SCROLL_ACTIVATION_THRESHOLD) {
+          hasUserScrolledRef.current = true;
+        }
+      }
+
+      // === Pull-and-hold gesture detection ===
+      const maxScroll = contentHeight - layoutHeight;
+      const overscroll = offsetY - maxScroll;
+      overscrollAmountRef.current = Math.max(0, overscroll);
+
+      // Check if user has pulled past threshold
+      if (
+        overscrollAmountRef.current >= OVERSCROLL_THRESHOLD &&
+        !holdTriggeredRef.current
+      ) {
+        // User is pulling past threshold - start hold timer if not already started
+        if (!holdTimerRef.current) {
+          console.log("[WebtoonViewer] Hold timer started");
+          holdStartTimeRef.current = Date.now();
+          setHoldProgress(0);
+
+          // Update progress every 50ms
+          progressIntervalRef.current = setInterval(() => {
+            if (holdStartTimeRef.current) {
+              const elapsed = Date.now() - holdStartTimeRef.current;
+              const progress = Math.min(elapsed / HOLD_DURATION, 1);
+              setHoldProgress(progress);
+            }
+          }, 50);
+
+          holdTimerRef.current = setTimeout(() => {
+            const nextChapter = viewerChapters?.next;
+            if (
+              nextChapter &&
+              (nextChapter.state.status === "wait" ||
+                nextChapter.state.status === "loaded")
+            ) {
+              console.log(
+                "[WebtoonViewer] Hold complete, loading next chapter"
+              );
+              holdTriggeredRef.current = true;
+              onGoToChapter(nextChapter);
+            }
+            holdTimerRef.current = null;
+            if (progressIntervalRef.current) {
+              clearInterval(progressIntervalRef.current);
+              progressIntervalRef.current = null;
+            }
+            setHoldProgress(0);
+          }, HOLD_DURATION);
+        }
+      } else {
+        // User released or didn't pull far enough - cancel timer
+        if (holdTimerRef.current) {
+          console.log("[WebtoonViewer] Hold cancelled");
+          clearTimeout(holdTimerRef.current);
+          holdTimerRef.current = null;
+          holdStartTimeRef.current = null;
+        }
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+          progressIntervalRef.current = null;
+        }
+        setHoldProgress(0);
+        // Reset trigger when user scrolls back up
+        if (overscrollAmountRef.current < 50) {
+          holdTriggeredRef.current = false;
+        }
       }
 
       // Skip page tracking if user hasn't scrolled intentionally
@@ -248,35 +331,70 @@ function WebtoonViewerComponent({
       }
     },
     [
-      handleScroll,
-      handleViewableItemsChanged,
       items,
       viewerChapters,
+      handleViewableItemsChanged,
+      handleScroll,
       setCurrentPage,
+      onGoToChapter,
     ]
   );
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current);
+      }
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, []);
 
   if (items.length === 0) {
     return null;
   }
 
   return (
-    <LegendList
-      ref={listRef}
-      data={items}
-      renderItem={renderItem}
-      keyExtractor={keyExtractor}
-      estimatedItemSize={SCREEN_HEIGHT * 0.8}
-      initialScrollIndex={
-        initialScrollIndex > 0 ? initialScrollIndex : undefined
-      }
-      showsVerticalScrollIndicator={false}
-      onScroll={onScroll}
-      scrollEventThrottle={16}
-      drawDistance={SCREEN_HEIGHT}
-      maintainVisibleContentPosition
-    />
+    <View style={styles.container}>
+      <LegendList
+        ref={listRef}
+        data={items}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        estimatedItemSize={SCREEN_HEIGHT * 0.8}
+        initialScrollIndex={
+          initialScrollIndex > 0 ? initialScrollIndex : undefined
+        }
+        showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        drawDistance={SCREEN_HEIGHT}
+        maintainVisibleContentPosition
+      />
+
+      {/* Hold progress indicator overlay */}
+      {holdProgress > 0 && (
+        <View style={styles.progressOverlay}>
+          <HoldProgressIndicator progress={holdProgress} size={100} />
+        </View>
+      )}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  progressOverlay: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: [{ translateX: -50 }, { translateY: -50 }],
+    zIndex: 1000,
+  },
+});
 
 export const WebtoonViewer = memo(WebtoonViewerComponent);
