@@ -6,6 +6,7 @@ import {
   type NativeSyntheticEvent,
   type NativeScrollEvent,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import { LegendList } from "@legendapp/list";
 import { PageHolder } from "./PageHolder";
 import { TransitionHolder } from "./TransitionHolder";
@@ -177,13 +178,22 @@ function WebtoonViewerComponent({
     []
   );
 
-  // Pull-and-hold gesture state
-  const overscrollAmountRef = useRef(0);
-  const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const holdStartTimeRef = useRef<number | null>(null);
-  const holdTriggeredRef = useRef(false);
-  const [holdProgress, setHoldProgress] = useState(0);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Pull-and-hold gesture state (bottom - next chapter)
+  const overscrollBottomRef = useRef(0);
+  const holdBottomTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const holdBottomStartTimeRef = useRef<number | null>(null);
+  const holdBottomTriggeredRef = useRef(false);
+  const [holdBottomProgress, setHoldBottomProgress] = useState(0);
+  const progressBottomIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Pull-and-hold gesture state (top - prev chapter)
+  const overscrollTopRef = useRef(0);
+  const holdTopTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const holdTopStartTimeRef = useRef<number | null>(null);
+  const holdTopTriggeredRef = useRef(false);
+  const [holdTopProgress, setHoldTopProgress] = useState(0);
+  const progressTopIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
   const OVERSCROLL_THRESHOLD = 150;
   const HOLD_DURATION = 1000; // 1 second
 
@@ -212,32 +222,93 @@ function WebtoonViewerComponent({
         }
       }
 
-      // === Pull-and-hold gesture detection ===
-      const maxScroll = contentHeight - layoutHeight;
-      const overscroll = offsetY - maxScroll;
-      overscrollAmountRef.current = Math.max(0, overscroll);
+      // === Top overscroll detection (prev chapter) ===
+      const overscrollTop = Math.abs(Math.min(0, offsetY)); // Negative = above top
+      overscrollTopRef.current = overscrollTop;
 
-      // Check if user has pulled past threshold
       if (
-        overscrollAmountRef.current >= OVERSCROLL_THRESHOLD &&
-        !holdTriggeredRef.current
+        overscrollTop >= OVERSCROLL_THRESHOLD &&
+        !holdTopTriggeredRef.current
       ) {
-        // User is pulling past threshold - start hold timer if not already started
-        if (!holdTimerRef.current) {
-          console.log("[WebtoonViewer] Hold timer started");
-          holdStartTimeRef.current = Date.now();
-          setHoldProgress(0);
+        if (!holdTopTimerRef.current) {
+          console.log("[WebtoonViewer] Top hold timer started");
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          holdTopStartTimeRef.current = Date.now();
+          setHoldTopProgress(0);
 
-          // Update progress every 50ms
-          progressIntervalRef.current = setInterval(() => {
-            if (holdStartTimeRef.current) {
-              const elapsed = Date.now() - holdStartTimeRef.current;
+          progressTopIntervalRef.current = setInterval(() => {
+            if (holdTopStartTimeRef.current) {
+              const elapsed = Date.now() - holdTopStartTimeRef.current;
               const progress = Math.min(elapsed / HOLD_DURATION, 1);
-              setHoldProgress(progress);
+              setHoldTopProgress(progress);
             }
           }, 50);
 
-          holdTimerRef.current = setTimeout(() => {
+          holdTopTimerRef.current = setTimeout(() => {
+            const prevChapter = viewerChapters?.prev;
+            if (
+              prevChapter &&
+              (prevChapter.state.status === "wait" ||
+                prevChapter.state.status === "loaded")
+            ) {
+              console.log(
+                "[WebtoonViewer] Top hold complete, loading prev chapter"
+              );
+              holdTopTriggeredRef.current = true;
+              onGoToChapter(prevChapter);
+            }
+            holdTopTimerRef.current = null;
+            if (progressTopIntervalRef.current) {
+              clearInterval(progressTopIntervalRef.current);
+              progressTopIntervalRef.current = null;
+            }
+            setHoldTopProgress(0);
+          }, HOLD_DURATION);
+        }
+      } else {
+        if (holdTopTimerRef.current) {
+          console.log("[WebtoonViewer] Top hold cancelled");
+          clearTimeout(holdTopTimerRef.current);
+          holdTopTimerRef.current = null;
+          holdTopStartTimeRef.current = null;
+        }
+        if (progressTopIntervalRef.current) {
+          clearInterval(progressTopIntervalRef.current);
+          progressTopIntervalRef.current = null;
+        }
+        setHoldTopProgress(0);
+        if (overscrollTop < 50) {
+          holdTopTriggeredRef.current = false;
+        }
+      }
+
+      // === Bottom overscroll detection (next chapter) ===
+      const maxScroll = contentHeight - layoutHeight;
+      const overscroll = offsetY - maxScroll;
+      overscrollBottomRef.current = Math.max(0, overscroll);
+
+      // Check if user has pulled past threshold
+      if (
+        overscrollBottomRef.current >= OVERSCROLL_THRESHOLD &&
+        !holdBottomTriggeredRef.current
+      ) {
+        // User is pulling past threshold - start hold timer if not already started
+        if (!holdBottomTimerRef.current) {
+          console.log("[WebtoonViewer] Bottom hold timer started");
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          holdBottomStartTimeRef.current = Date.now();
+          setHoldBottomProgress(0);
+
+          // Update progress every 50ms
+          progressBottomIntervalRef.current = setInterval(() => {
+            if (holdBottomStartTimeRef.current) {
+              const elapsed = Date.now() - holdBottomStartTimeRef.current;
+              const progress = Math.min(elapsed / HOLD_DURATION, 1);
+              setHoldBottomProgress(progress);
+            }
+          }, 50);
+
+          holdBottomTimerRef.current = setTimeout(() => {
             const nextChapter = viewerChapters?.next;
             if (
               nextChapter &&
@@ -245,35 +316,35 @@ function WebtoonViewerComponent({
                 nextChapter.state.status === "loaded")
             ) {
               console.log(
-                "[WebtoonViewer] Hold complete, loading next chapter"
+                "[WebtoonViewer] Bottom hold complete, loading next chapter"
               );
-              holdTriggeredRef.current = true;
+              holdBottomTriggeredRef.current = true;
               onGoToChapter(nextChapter);
             }
-            holdTimerRef.current = null;
-            if (progressIntervalRef.current) {
-              clearInterval(progressIntervalRef.current);
-              progressIntervalRef.current = null;
+            holdBottomTimerRef.current = null;
+            if (progressBottomIntervalRef.current) {
+              clearInterval(progressBottomIntervalRef.current);
+              progressBottomIntervalRef.current = null;
             }
-            setHoldProgress(0);
+            setHoldBottomProgress(0);
           }, HOLD_DURATION);
         }
       } else {
         // User released or didn't pull far enough - cancel timer
-        if (holdTimerRef.current) {
-          console.log("[WebtoonViewer] Hold cancelled");
-          clearTimeout(holdTimerRef.current);
-          holdTimerRef.current = null;
-          holdStartTimeRef.current = null;
+        if (holdBottomTimerRef.current) {
+          console.log("[WebtoonViewer] Bottom hold cancelled");
+          clearTimeout(holdBottomTimerRef.current);
+          holdBottomTimerRef.current = null;
+          holdBottomStartTimeRef.current = null;
         }
-        if (progressIntervalRef.current) {
-          clearInterval(progressIntervalRef.current);
-          progressIntervalRef.current = null;
+        if (progressBottomIntervalRef.current) {
+          clearInterval(progressBottomIntervalRef.current);
+          progressBottomIntervalRef.current = null;
         }
-        setHoldProgress(0);
+        setHoldBottomProgress(0);
         // Reset trigger when user scrolls back up
-        if (overscrollAmountRef.current < 50) {
-          holdTriggeredRef.current = false;
+        if (overscrollBottomRef.current < 50) {
+          holdBottomTriggeredRef.current = false;
         }
       }
 
@@ -340,14 +411,20 @@ function WebtoonViewerComponent({
     ]
   );
 
-  // Cleanup timer on unmount
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
-      if (holdTimerRef.current) {
-        clearTimeout(holdTimerRef.current);
+      if (holdTopTimerRef.current) {
+        clearTimeout(holdTopTimerRef.current);
       }
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
+      if (progressTopIntervalRef.current) {
+        clearInterval(progressTopIntervalRef.current);
+      }
+      if (holdBottomTimerRef.current) {
+        clearTimeout(holdBottomTimerRef.current);
+      }
+      if (progressBottomIntervalRef.current) {
+        clearInterval(progressBottomIntervalRef.current);
       }
     };
   }, []);
@@ -356,13 +433,16 @@ function WebtoonViewerComponent({
     return null;
   }
 
-  // Footer component for overscroll area - always render to avoid content size changes
+  // Footer component for bottom overscroll (next chapter)
   const ListFooter = () => {
     return (
       <View
-        style={[styles.footerContainer, { opacity: holdProgress > 0 ? 1 : 0 }]}
+        style={[
+          styles.footerContainer,
+          { opacity: holdBottomProgress > 0 ? 1 : 0 },
+        ]}
       >
-        <HoldProgressIndicator progress={holdProgress} size={60} />
+        <HoldProgressIndicator progress={holdBottomProgress} size={60} />
       </View>
     );
   };
@@ -385,6 +465,13 @@ function WebtoonViewerComponent({
         maintainVisibleContentPosition
         ListFooterComponent={ListFooter}
       />
+
+      {/* Top progress indicator overlay (appears on pull-down) */}
+      {holdTopProgress > 0 && (
+        <View style={styles.topProgressOverlay}>
+          <HoldProgressIndicator progress={holdTopProgress} size={60} />
+        </View>
+      )}
     </View>
   );
 }
@@ -392,6 +479,14 @@ function WebtoonViewerComponent({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  topProgressOverlay: {
+    position: "absolute",
+    top: 100,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 1000,
   },
   footerContainer: {
     height: 200,

@@ -37,11 +37,11 @@ export function buildAdapterItems(
   }
 
   // === 3. Next transition (chapter end divider) ===
-  // Shows at end of chapter - user must tap to load next chapter
+  // Shows at end of chapter - user must tap/swipe to load next chapter
   items.push(createNextTransition(curr, next));
 
-  // Note: Next chapter pages are NOT added to list
-  // This creates a natural boundary - user taps transition to continue
+  // Note: Prev and next chapter pages are NOT added to list
+  // This creates natural boundaries - user must explicitly load them
 
   return items;
 }

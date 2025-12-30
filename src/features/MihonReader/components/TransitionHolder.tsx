@@ -139,9 +139,8 @@ function TransitionHolderComponent({
     return "#00d9ff";
   };
 
-  // Show load button for next chapter when available
-  const showLoadButton =
-    !isPrev && to && (isWait || isLoaded || isError) && onLoadChapter;
+  // Show load button for both prev and next when chapter available
+  const showLoadButton = to && (isWait || isLoaded || isError) && onLoadChapter;
 
   // Swipe progress indicator
   const swipeProgress = swipeOffset.interpolate({
