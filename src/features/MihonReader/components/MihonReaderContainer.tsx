@@ -405,12 +405,7 @@ export function MihonReaderContainer() {
         onPreloadNeeded={handlePreloadNeeded}
         onRetryChapter={handleRetryChapter}
       />
-      <ReaderOverlay
-        chapterTitle={
-          currentChapter?.title || `Chapter ${currentChapter?.number}`
-        }
-        onSeekPage={handleSeekPage}
-      />
+      <ReaderOverlay onSeekPage={handleSeekPage} />
     </View>
   );
 }

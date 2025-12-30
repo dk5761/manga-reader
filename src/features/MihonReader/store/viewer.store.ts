@@ -16,6 +16,8 @@ export interface ViewerState {
   // === Current Item Tracking ===
   /** Currently visible item (page or transition) */
   currentItem: AdapterItem | null;
+  /** Currently active chapter (for overlay display) */
+  currentChapter: ReaderChapter | null;
 
   // === UI State ===
   /** Whether menu overlay is visible */
@@ -68,6 +70,7 @@ export interface ViewerActions {
 
   // === Item Tracking ===
   setCurrentItem(item: AdapterItem | null): void;
+  setCurrentChapter(chapter: ReaderChapter | null): void;
 
   // === Page Tracking ===
   setCurrentPage(page: number, total: number): void;
@@ -81,6 +84,7 @@ export interface ViewerActions {
 const initialState: ViewerState = {
   viewerChapters: null,
   currentItem: null,
+  currentChapter: null,
   menuVisible: false,
   currentPage: 1,
   totalPages: 0,
@@ -112,6 +116,7 @@ export const useViewerStore = create<ViewerState & ViewerActions>(
         mangaTitle: data.mangaTitle,
         mangaUrl: data.mangaUrl,
         viewerChapters: data.viewerChapters,
+        currentChapter: data.viewerChapters.curr,
         currentPage: viewerChapters.curr.requestedPage + 1 || 1,
         totalPages: currPages.length,
         isInitialized: true,
@@ -167,6 +172,7 @@ export const useViewerStore = create<ViewerState & ViewerActions>(
 
     // === Item Tracking ===
     setCurrentItem: (item) => set({ currentItem: item }),
+    setCurrentChapter: (chapter) => set({ currentChapter: chapter }),
 
     // === Page Tracking ===
     setCurrentPage: (page, total) =>

@@ -23,6 +23,7 @@ export function usePageTracking(
   const viewerChapters = useViewerStore((s) => s.viewerChapters);
   const setCurrentItem = useViewerStore((s) => s.setCurrentItem);
   const setCurrentPage = useViewerStore((s) => s.setCurrentPage);
+  const setCurrentChapter = useViewerStore((s) => s.setCurrentChapter);
   const hideMenu = useViewerStore((s) => s.hideMenu);
   const menuVisible = useViewerStore((s) => s.menuVisible);
 
@@ -114,6 +115,7 @@ export function usePageTracking(
             item.chapterId
           );
           if (chapter) {
+            setCurrentChapter(chapter);
             callbacks.onChapterChange(chapter);
           }
         }
@@ -132,6 +134,7 @@ export function usePageTracking(
       viewerChapters,
       setCurrentItem,
       setCurrentPage,
+      setCurrentChapter,
       findChapterForItem,
       callbacks,
     ]

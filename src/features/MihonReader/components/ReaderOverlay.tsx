@@ -12,7 +12,6 @@ import { useViewerStore } from "../store/viewer.store";
 import { PageSlider } from "./PageSlider";
 
 interface ReaderOverlayProps {
-  chapterTitle?: string;
   onSeekPage?: (page: number) => void;
 }
 
@@ -20,10 +19,7 @@ interface ReaderOverlayProps {
  * ReaderOverlay - Top and bottom control bars.
  * Shows/hides based on menuVisible state.
  */
-function ReaderOverlayComponent({
-  chapterTitle,
-  onSeekPage,
-}: ReaderOverlayProps) {
+function ReaderOverlayComponent({ onSeekPage }: ReaderOverlayProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -31,6 +27,7 @@ function ReaderOverlayComponent({
   const mangaTitle = useViewerStore((s) => s.mangaTitle);
   const currentPage = useViewerStore((s) => s.currentPage);
   const totalPages = useViewerStore((s) => s.totalPages);
+  const currentChapter = useViewerStore((s) => s.currentChapter);
 
   // Animated styles for slide in/out
   const topBarStyle = useAnimatedStyle(() => ({
@@ -78,10 +75,33 @@ function ReaderOverlayComponent({
           <Text style={styles.mangaTitle} numberOfLines={1}>
             {mangaTitle}
           </Text>
-          {chapterTitle && (
-            <Text style={styles.chapterTitle} numberOfLines={1}>
-              {chapterTitle}
-            </Text>
+          {currentChapter && (
+            <>
+              <Text style={styles.chapterNumber} numberOfLines={1}>
+                Chapter {currentChapter.chapter.number}
+              </Text>
+              {(() => {
+                const title = currentChapter.chapter.title;
+                console.log("[ReaderOverlay] Chapter title:", {
+                  raw: title,
+                  length: title?.length,
+                  trimmed: title?.trim(),
+                  toLowerCase: title?.toLowerCase(),
+                  shouldShow:
+                    title &&
+                    title.trim() !== "" &&
+                    title.toLowerCase() !== "chapter",
+                });
+
+                return title &&
+                  title.trim() !== "" &&
+                  title.toLowerCase() !== "chapter" ? (
+                  <Text style={styles.chapterTitle} numberOfLines={1}>
+                    {title}
+                  </Text>
+                ) : null;
+              })()}
+            </>
           )}
         </View>
 
@@ -134,6 +154,12 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  chapterNumber: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "500",
+    marginTop: 2,
   },
   chapterTitle: {
     color: "#a1a1aa",
