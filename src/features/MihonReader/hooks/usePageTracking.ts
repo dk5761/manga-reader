@@ -3,8 +3,6 @@ import { useViewerStore } from "../store/viewer.store";
 import type { AdapterItem, ReaderChapter, ReaderPage } from "../models";
 import { getItemChapterId } from "../utils";
 
-const PRELOAD_THRESHOLD = 5; // Preload when within last N pages
-
 export interface PageTrackingCallbacks {
   /** Called when the active chapter changes */
   onChapterChange: (newChapter: ReaderChapter) => void;
@@ -28,7 +26,6 @@ export function usePageTracking(
   const menuVisible = useViewerStore((s) => s.menuVisible);
 
   const currentItemRef = useRef<AdapterItem | null>(null);
-  const preloadTriggeredRef = useRef<Set<string>>(new Set());
   const lastScrollY = useRef(0);
   const scrollThreshold = 50; // Hide menu after N pixels of scroll
 
@@ -89,20 +86,8 @@ export function usePageTracking(
 
         setCurrentPage(pageNum, totalPages);
 
-        // === Preload Trigger ===
-        // When within last PRELOAD_THRESHOLD pages of current chapter
-        const pagesFromEnd = totalPages - item.index;
-        if (pagesFromEnd <= PRELOAD_THRESHOLD && viewerChapters?.next) {
-          const nextChapterId = viewerChapters.next.chapter.id;
-          if (!preloadTriggeredRef.current.has(nextChapterId)) {
-            preloadTriggeredRef.current.add(nextChapterId);
-            console.log(
-              "[usePageTracking] Preload trigger for:",
-              nextChapterId
-            );
-            callbacks.onPreloadNeeded(viewerChapters.next);
-          }
-        }
+        // Note: Preloading disabled - chapter loading is now user-driven
+        // User must swipe up or tap button at transition to load next chapter
 
         // === Chapter Switch Detection ===
         // If the current item's chapter is different from viewerChapters.curr
@@ -159,16 +144,8 @@ export function usePageTracking(
     [menuVisible, hideMenu]
   );
 
-  /**
-   * Reset preload tracking (call when viewerChapters changes).
-   */
-  const resetPreloadTracking = useCallback(() => {
-    preloadTriggeredRef.current.clear();
-  }, []);
-
   return {
     handleViewableItemsChanged,
     handleScroll,
-    resetPreloadTracking,
   };
 }

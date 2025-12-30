@@ -80,6 +80,8 @@ export function MihonReaderContainer() {
   const reset = useViewerStore((s) => s.reset);
   const setViewerChapters = useViewerStore((s) => s.setViewerChapters);
   const updateChapterState = useViewerStore((s) => s.updateChapterState);
+  const setCurrentChapter = useViewerStore((s) => s.setCurrentChapter);
+  const setCurrentPage = useViewerStore((s) => s.setCurrentPage);
 
   // Hooks
   const { loadChapter, retryChapter } = useChapterLoader();
@@ -308,17 +310,26 @@ export function MihonReaderContainer() {
         return null;
       };
 
+      const newCurrChapter = findExisting(newChapterId) ?? newChapter;
       const newViewerChapters: ViewerChapters = {
         prev: prevChapter
           ? findExisting(prevChapter.id) ?? createReaderChapter(prevChapter)
           : null,
-        curr: findExisting(newChapterId) ?? newChapter,
+        curr: newCurrChapter,
         next: nextChapter
           ? findExisting(nextChapter.id) ?? createReaderChapter(nextChapter)
           : null,
       };
 
       setViewerChapters(newViewerChapters);
+
+      // Update overlay: set current chapter and reset to page 1
+      setCurrentChapter(newCurrChapter);
+      const pages =
+        newCurrChapter.state.status === "loaded"
+          ? newCurrChapter.state.pages.length
+          : 0;
+      setCurrentPage(1, pages);
 
       // Preload new adjacent chapters
       if (newViewerChapters.prev?.state.status === "wait") {
@@ -328,7 +339,14 @@ export function MihonReaderContainer() {
         preloadChapter(newViewerChapters.next);
       }
     },
-    [viewerChapters, chapters, setViewerChapters, preloadChapter]
+    [
+      viewerChapters,
+      chapters,
+      setViewerChapters,
+      setCurrentChapter,
+      setCurrentPage,
+      preloadChapter,
+    ]
   );
 
   /**
@@ -404,6 +422,7 @@ export function MihonReaderContainer() {
         onChapterChange={handleChapterChange}
         onPreloadNeeded={handlePreloadNeeded}
         onRetryChapter={handleRetryChapter}
+        onGoToChapter={handleChapterChange}
       />
       <ReaderOverlay onSeekPage={handleSeekPage} />
     </View>

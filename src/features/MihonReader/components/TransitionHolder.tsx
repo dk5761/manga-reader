@@ -1,10 +1,12 @@
-import { memo } from "react";
+import { memo, useRef, useMemo } from "react";
 import {
   View,
   Text,
   Pressable,
   ActivityIndicator,
   StyleSheet,
+  PanResponder,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { ChapterTransition } from "../models";
@@ -15,9 +17,12 @@ interface TransitionHolderProps {
   onLoadChapter?: () => void;
 }
 
+// Swipe threshold to trigger chapter load
+const SWIPE_THRESHOLD = 80;
+
 /**
  * TransitionHolder - Chapter transition separator.
- * Shows chapter boundaries and handles loading states for adjacent chapters.
+ * Shows chapter boundaries with swipe gesture to load next chapter.
  */
 function TransitionHolderComponent({
   transition,
@@ -27,6 +32,10 @@ function TransitionHolderComponent({
   const { direction, from, to } = transition;
   const isPrev = direction === "prev";
 
+  // Swipe animation
+  const swipeOffset = useRef(new Animated.Value(0)).current;
+  const swipeTriggered = useRef(false);
+
   // Determine state
   const status = to?.state.status ?? "none";
   const isWait = status === "wait";
@@ -35,59 +44,78 @@ function TransitionHolderComponent({
   const isLoaded = status === "loaded";
   const noChapter = !to;
 
+  // Can we load this chapter?
+  const canLoad = to && (isWait || isLoaded) && onLoadChapter && !isPrev;
+
+  // Pan responder for swipe gesture (like Telegram)
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => !!canLoad,
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          // Only respond to vertical swipes when we can load
+          return !!canLoad && Math.abs(gestureState.dy) > 10;
+        },
+        onPanResponderGrant: () => {
+          swipeTriggered.current = false;
+        },
+        onPanResponderMove: (_, gestureState) => {
+          // For next chapter: swipe UP (negative dy)
+          const offset = Math.min(0, gestureState.dy);
+          swipeOffset.setValue(offset);
+
+          // Check threshold
+          if (offset < -SWIPE_THRESHOLD && !swipeTriggered.current) {
+            swipeTriggered.current = true;
+          }
+        },
+        onPanResponderRelease: () => {
+          if (swipeTriggered.current && onLoadChapter) {
+            onLoadChapter();
+          }
+          // Reset animation
+          Animated.spring(swipeOffset, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        },
+      }),
+    [canLoad, onLoadChapter]
+  );
+
   // Get display text
   const getTitle = () => {
-    // No chapter available
     if (noChapter) {
       return isPrev ? "Beginning of series" : "You're all caught up!";
     }
+    if (isError) return "Failed to load chapter";
+    if (isLoading) return isPrev ? "Loading previous..." : "Loading next...";
 
-    // Error state
-    if (isError) {
-      return "Failed to load chapter";
-    }
-
-    // Loading state
-    if (isLoading) {
-      return isPrev ? "Loading previous..." : "Loading next...";
-    }
-
-    // Chapter available (loaded or waiting)
     const chapterNum = to.chapter.number;
-    const chapterTitle = to.chapter.title;
-
-    if (isPrev) {
-      return `← Chapter ${chapterNum}`;
-    }
+    if (isPrev) return `← Chapter ${chapterNum}`;
     return `Chapter ${chapterNum} →`;
   };
 
   const getSubtitle = () => {
-    // No chapter
     if (noChapter) {
       return isPrev
         ? "This is the first chapter"
         : "No more chapters available";
     }
-
-    // Error state
     if (isError && to?.state.status === "error") {
       return to.state.error;
     }
+    if (isLoading) return "Please wait...";
 
-    // Loading state
-    if (isLoading) {
-      return "Please wait...";
+    // Show swipe hint for next chapter
+    if (!isPrev && canLoad) {
+      return "Swipe up or tap button to continue";
     }
 
-    // Wait state - not loaded yet
-    if (isWait) {
-      return "Tap to load chapter";
-    }
+    if (isWait) return "Tap to load chapter";
 
-    // Loaded - show chapter title or instruction
     const chapterTitle = to.chapter.title;
-    if (chapterTitle) {
+    if (chapterTitle && chapterTitle.toLowerCase() !== "chapter") {
       return chapterTitle;
     }
     return `Scroll ${isPrev ? "up" : "down"} to continue`;
@@ -97,24 +125,36 @@ function TransitionHolderComponent({
     if (isError) return "alert-circle";
     if (isLoading) return "hourglass";
     if (noChapter) return isPrev ? "flag" : "checkmark-circle";
+    // Show swipe icon for next chapter
+    if (!isPrev && canLoad) return "arrow-up-circle";
     if (isWait) return "arrow-down-circle-outline";
     return isPrev ? "chevron-up-circle" : "chevron-down-circle";
   };
 
-  // Color based on state
   const getIconColor = () => {
     if (isError) return "#ef4444";
     if (noChapter) return "#71717a";
     if (isLoading) return "#00d9ff";
-    if (isLoaded) return "#22c55e"; // Green for loaded
-    return "#00d9ff"; // Cyan for wait
+    if (canLoad) return "#22c55e"; // Green for ready to load
+    return "#00d9ff";
   };
 
-  // Show load button for wait or error states
-  const showLoadButton = (isWait || isError) && to && onLoadChapter;
+  // Show load button for next chapter when available
+  const showLoadButton =
+    !isPrev && to && (isWait || isLoaded || isError) && onLoadChapter;
+
+  // Swipe progress indicator
+  const swipeProgress = swipeOffset.interpolate({
+    inputRange: [-SWIPE_THRESHOLD, 0],
+    outputRange: [1, 0],
+    extrapolate: "clamp",
+  });
 
   return (
-    <Pressable onPress={onTap} style={styles.container}>
+    <Animated.View
+      style={[styles.container, { transform: [{ translateY: swipeOffset }] }]}
+      {...(canLoad ? panResponder.panHandlers : {})}
+    >
       {/* Current chapter indicator */}
       <View style={styles.chapterIndicator}>
         <Text style={styles.chapterLabel}>
@@ -142,6 +182,16 @@ function TransitionHolderComponent({
       {/* Subtitle */}
       <Text style={styles.subtitle}>{getSubtitle()}</Text>
 
+      {/* Swipe indicator for next chapter */}
+      {canLoad && (
+        <Animated.View
+          style={[styles.swipeIndicator, { opacity: swipeProgress }]}
+        >
+          <Ionicons name="chevron-up" size={24} color="#22c55e" />
+          <Text style={styles.swipeHint}>Release to load</Text>
+        </Animated.View>
+      )}
+
       {/* Load/Retry button */}
       {showLoadButton && (
         <Pressable
@@ -159,7 +209,7 @@ function TransitionHolderComponent({
 
       {/* Bottom separator */}
       <View style={styles.bottomSeparator} />
-    </Pressable>
+    </Animated.View>
   );
 }
 
@@ -179,20 +229,20 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   chapterLabel: {
-    color: "#71717a",
-    fontSize: 12,
+    color: "#a1a1aa",
+    fontSize: 13,
     fontWeight: "500",
   },
   separatorLine: {
-    width: 100,
-    height: 1,
+    width: 60,
+    height: 2,
     backgroundColor: "#27272a",
     marginBottom: 24,
   },
   title: {
     color: "#fff",
     fontSize: 20,
-    fontWeight: "700",
+    fontWeight: "600",
     marginTop: 16,
     textAlign: "center",
   },
@@ -202,9 +252,20 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: "center",
   },
+  swipeIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 16,
+    gap: 8,
+  },
+  swipeHint: {
+    color: "#22c55e",
+    fontSize: 14,
+    fontWeight: "500",
+  },
   loadButton: {
-    marginTop: 20,
-    backgroundColor: "#00d9ff",
+    marginTop: 24,
+    backgroundColor: "#22c55e",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -213,16 +274,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#ef4444",
   },
   loadButtonText: {
-    color: "#000",
-    fontSize: 14,
+    color: "#fff",
+    fontSize: 16,
     fontWeight: "600",
   },
   bottomSeparator: {
-    width: 64,
+    width: 60,
     height: 2,
     backgroundColor: "#27272a",
-    marginTop: 32,
-    borderRadius: 1,
+    marginTop: 24,
   },
 });
 

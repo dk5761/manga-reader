@@ -25,6 +25,7 @@ interface WebtoonViewerProps {
   onChapterChange: (chapter: ReaderChapter) => void;
   onPreloadNeeded: (chapter: ReaderChapter) => void;
   onRetryChapter: (chapter: ReaderChapter) => void;
+  onGoToChapter: (chapter: ReaderChapter) => void;
 }
 
 /**
@@ -35,6 +36,7 @@ function WebtoonViewerComponent({
   onChapterChange,
   onPreloadNeeded,
   onRetryChapter,
+  onGoToChapter,
 }: WebtoonViewerProps) {
   const listRef = useRef<any>(null);
 
@@ -98,6 +100,36 @@ function WebtoonViewerComponent({
     }
   }, [viewerChapters?.curr.chapter.id]); // Only on chapter change
 
+  // Track previous chapter ID to detect chapter switches
+  const prevChapterIdRef = useRef<string | null>(null);
+
+  // Scroll to first page when current chapter changes (for Load Chapter button)
+  useEffect(() => {
+    const currChapterId = viewerChapters?.curr.chapter.id;
+
+    // Skip initial mount
+    if (prevChapterIdRef.current === null) {
+      prevChapterIdRef.current = currChapterId ?? null;
+      return;
+    }
+
+    // Detect chapter change
+    if (currChapterId && currChapterId !== prevChapterIdRef.current) {
+      console.log(
+        "[WebtoonViewer] Chapter changed, scrolling to start:",
+        currChapterId
+      );
+      prevChapterIdRef.current = currChapterId;
+
+      // Scroll to the first page of new chapter (index 1 is first page after prev transition)
+      if (listRef.current && items.length > 1) {
+        setTimeout(() => {
+          listRef.current?.scrollToIndex({ index: 1, animated: false });
+        }, 100);
+      }
+    }
+  }, [viewerChapters?.curr.chapter.id, items.length]);
+
   // Reset scroll tracking when items change
   useEffect(() => {
     hasUserScrolledRef.current = false;
@@ -115,15 +147,25 @@ function WebtoonViewerComponent({
       if (item.type === "page") {
         return <PageHolder page={item} onTap={handleTap} />;
       }
+      // For transitions, use onGoToChapter for loading, onRetryChapter for errors
+      const handleLoadChapter = item.to
+        ? () => {
+            if (item.to!.state.status === "error") {
+              onRetryChapter(item.to!);
+            } else {
+              onGoToChapter(item.to!);
+            }
+          }
+        : undefined;
       return (
         <TransitionHolder
           transition={item}
           onTap={handleTap}
-          onLoadChapter={item.to ? () => onRetryChapter(item.to!) : undefined}
+          onLoadChapter={handleLoadChapter}
         />
       );
     },
-    [handleTap, onRetryChapter]
+    [handleTap, onRetryChapter, onGoToChapter]
   );
 
   // Key extractor

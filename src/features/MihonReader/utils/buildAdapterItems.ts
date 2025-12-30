@@ -37,18 +37,11 @@ export function buildAdapterItems(
   }
 
   // === 3. Next transition (chapter end divider) ===
-  // Always show so user knows they're at the end of a chapter
+  // Shows at end of chapter - user must tap to load next chapter
   items.push(createNextTransition(curr, next));
 
-  // === 4. Next chapter pages (for seamless forward scroll) ===
-  // Add ALL pages of next chapter when loaded, so user can scroll into them
-  // The chapter change will be detected and viewerChapters will update
-  if (next) {
-    const nextPages = getChapterPages(next);
-    if (nextPages && nextPages.length > 0) {
-      items.push(...nextPages);
-    }
-  }
+  // Note: Next chapter pages are NOT added to list
+  // This creates a natural boundary - user taps transition to continue
 
   return items;
 }
