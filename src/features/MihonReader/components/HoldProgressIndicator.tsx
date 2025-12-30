@@ -2,10 +2,11 @@ import React from "react";
 import { View, StyleSheet } from "react-native";
 import Animated, {
   useAnimatedProps,
-  useSharedValue,
   withTiming,
+  Easing,
 } from "react-native-reanimated";
 import Svg, { Circle } from "react-native-svg";
+import { Ionicons } from "@expo/vector-icons";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -16,13 +17,17 @@ interface HoldProgressIndicatorProps {
 
 export function HoldProgressIndicator({
   progress,
-  size = 80,
+  size = 100,
 }: HoldProgressIndicatorProps) {
-  const radius = (size - 8) / 2;
-  const circumference = 2 * Math.PI * radius;
+  const circleRadius = size / 2 - 6; // Inner green circle
+  const progressRadius = size / 2 - 4; // Progress ring radius
+  const circumference = 2 * Math.PI * progressRadius;
 
   const animatedProps = useAnimatedProps(() => {
-    const strokeDashoffset = circumference * (1 - progress);
+    const strokeDashoffset = withTiming(circumference * (1 - progress), {
+      duration: 100,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1), // Smooth easing
+    });
     return {
       strokeDashoffset,
     };
@@ -30,23 +35,24 @@ export function HoldProgressIndicator({
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
-      <Svg width={size} height={size}>
-        {/* Background circle */}
+      {/* SVG for circles */}
+      <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
+        {/* Background track (dark) */}
         <Circle
           cx={size / 2}
           cy={size / 2}
-          r={radius}
+          r={progressRadius}
           stroke="#27272a"
-          strokeWidth={4}
+          strokeWidth={6}
           fill="none"
         />
-        {/* Progress circle */}
+        {/* Progress circle (green) */}
         <AnimatedCircle
           cx={size / 2}
           cy={size / 2}
-          r={radius}
+          r={progressRadius}
           stroke="#22c55e"
-          strokeWidth={4}
+          strokeWidth={6}
           fill="none"
           strokeDasharray={`${circumference} ${circumference}`}
           animatedProps={animatedProps}
@@ -55,12 +61,31 @@ export function HoldProgressIndicator({
           origin={`${size / 2}, ${size / 2}`}
         />
       </Svg>
+
+      {/* Green circle background with down chevron */}
+      <View
+        style={[
+          styles.iconContainer,
+          {
+            width: circleRadius * 2,
+            height: circleRadius * 2,
+            borderRadius: circleRadius,
+          },
+        ]}
+      >
+        <Ionicons name="chevron-down" size={size * 0.4} color="#fff" />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  iconContainer: {
+    backgroundColor: "#22c55e",
     justifyContent: "center",
     alignItems: "center",
   },

@@ -185,7 +185,7 @@ function WebtoonViewerComponent({
   const [holdProgress, setHoldProgress] = useState(0);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const OVERSCROLL_THRESHOLD = 150;
-  const HOLD_DURATION = 2000; // 2 seconds
+  const HOLD_DURATION = 1000; // 1 second
 
   // Scroll handler
   const onScroll = useCallback(
@@ -356,6 +356,17 @@ function WebtoonViewerComponent({
     return null;
   }
 
+  // Footer component for overscroll area - always render to avoid content size changes
+  const ListFooter = () => {
+    return (
+      <View
+        style={[styles.footerContainer, { opacity: holdProgress > 0 ? 1 : 0 }]}
+      >
+        <HoldProgressIndicator progress={holdProgress} size={60} />
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <LegendList
@@ -372,14 +383,8 @@ function WebtoonViewerComponent({
         scrollEventThrottle={16}
         drawDistance={SCREEN_HEIGHT}
         maintainVisibleContentPosition
+        ListFooterComponent={ListFooter}
       />
-
-      {/* Hold progress indicator overlay */}
-      {holdProgress > 0 && (
-        <View style={styles.progressOverlay}>
-          <HoldProgressIndicator progress={holdProgress} size={100} />
-        </View>
-      )}
     </View>
   );
 }
@@ -388,12 +393,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  progressOverlay: {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    transform: [{ translateX: -50 }, { translateY: -50 }],
-    zIndex: 1000,
+  footerContainer: {
+    height: 200,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000",
   },
 });
 
