@@ -436,20 +436,6 @@ function WebtoonViewerComponent({
     return null;
   }
 
-  // Footer component for bottom overscroll (next chapter)
-  const ListFooter = () => {
-    return (
-      <View
-        style={[
-          styles.footerContainer,
-          { opacity: holdBottomProgress > 0 ? 1 : 0 },
-        ]}
-      >
-        <HoldProgressIndicator progress={holdBottomProgress} size={60} />
-      </View>
-    );
-  };
-
   return (
     <View style={styles.container}>
       <LegendList
@@ -466,13 +452,19 @@ function WebtoonViewerComponent({
         scrollEventThrottle={16}
         drawDistance={SCREEN_HEIGHT}
         maintainVisibleContentPosition
-        ListFooterComponent={ListFooter}
       />
 
       {/* Top progress indicator overlay (appears on pull-down) */}
       {holdTopProgress > 0 && (
         <View style={styles.topProgressOverlay}>
           <HoldProgressIndicator progress={holdTopProgress} size={60} />
+        </View>
+      )}
+
+      {/* Bottom progress indicator overlay (appears on pull-up) */}
+      {holdBottomProgress > 0 && (
+        <View style={styles.bottomProgressOverlay}>
+          <HoldProgressIndicator progress={holdBottomProgress} size={60} />
         </View>
       )}
     </View>
@@ -491,11 +483,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     zIndex: 1000,
   },
-  footerContainer: {
-    height: 200,
-    justifyContent: "center",
+  bottomProgressOverlay: {
+    position: "absolute",
+    bottom: 100,
+    left: 0,
+    right: 0,
     alignItems: "center",
-    backgroundColor: "#000",
+    zIndex: 1000,
   },
 });
 
