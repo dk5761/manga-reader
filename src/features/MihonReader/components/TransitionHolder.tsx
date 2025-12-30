@@ -118,7 +118,11 @@ function TransitionHolderComponent({
       {/* Current chapter indicator */}
       <View style={styles.chapterIndicator}>
         <Text style={styles.chapterLabel}>
-          {isPrev ? "Previous" : "Current"}: Chapter {from.chapter.number}
+          {isPrev
+            ? to
+              ? `Previous: Chapter ${to.chapter.number}`
+              : "Beginning of series"
+            : `Current: Chapter ${from.chapter.number}`}
         </Text>
       </View>
 
