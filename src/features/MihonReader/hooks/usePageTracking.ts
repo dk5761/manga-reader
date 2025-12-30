@@ -8,6 +8,8 @@ export interface PageTrackingCallbacks {
   onChapterChange: (newChapter: ReaderChapter) => void;
   /** Called when preloading should trigger */
   onPreloadNeeded: (chapter: ReaderChapter) => void;
+  /** Called when chapter should be marked as read (95% threshold) */
+  onMarkChapterRead?: (chapter: ReaderChapter, totalPages: number) => void;
 }
 
 /**
@@ -85,6 +87,21 @@ export function usePageTracking(
         const totalPages = pages.length;
 
         setCurrentPage(pageNum, totalPages);
+
+        // === Mark as Read Detection (95% threshold) ===
+        if (totalPages > 0) {
+          const progress = pageNum / totalPages;
+          const threshold = 0.95;
+
+          if (progress >= threshold) {
+            console.log(
+              "[usePageTracking] Chapter 95% complete:",
+              chapter.chapter.id,
+              `(${pageNum}/${totalPages})`
+            );
+            callbacks.onMarkChapterRead?.(chapter, totalPages);
+          }
+        }
 
         // Note: Preloading disabled - chapter loading is now user-driven
         // User must swipe up or tap button at transition to load next chapter

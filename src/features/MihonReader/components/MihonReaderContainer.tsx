@@ -13,6 +13,10 @@ import { useQuery } from "@tanstack/react-query";
 import { getSource } from "@/sources";
 import type { Chapter } from "@/sources";
 import { useChapterList } from "@/features/Manga/api/manga.queries";
+import {
+  useMarkChapterRead,
+  useAddHistoryEntry,
+} from "@/features/Library/hooks";
 import { WebtoonViewer } from "./WebtoonViewer";
 import { ReaderOverlay } from "./ReaderOverlay";
 import { useViewerStore } from "../store/viewer.store";
@@ -86,9 +90,12 @@ export function MihonReaderContainer() {
   // Hooks
   const { loadChapter, retryChapter } = useChapterLoader();
   const { preloadChapter, preloadAdjacent } = usePreloader();
+  const markChapterRead = useMarkChapterRead();
+  const addHistoryEntry = useAddHistoryEntry();
 
   // Refs
   const hasInitializedRef = useRef(false);
+  const markedAsReadRef = useRef<Set<string>>(new Set()); // Track marked chapters to avoid duplicates
 
   // Get source
   const source = getSource(sourceId || "");
@@ -190,6 +197,27 @@ export function MihonReaderContainer() {
           preloadChapter(nextReaderChapter);
         }
       }, 500);
+
+      // Add history entry on chapter open
+      if (mangaId && currentChapter) {
+        console.log(
+          "[MihonReaderContainer] Adding history entry for chapter:",
+          currentChapter.id
+        );
+        addHistoryEntry({
+          mangaId: mangaId,
+          mangaTitle: mangaTitle || "",
+          mangaCover: mangaCover,
+          mangaUrl: mangaUrl || "",
+          chapterId: currentChapter.id,
+          chapterNumber: currentChapter.number,
+          chapterTitle: currentChapter.title,
+          chapterUrl: currentChapter.url,
+          pageReached: 1, // Starting at page 1
+          totalPages: currPages.length,
+          sourceId: sourceId || "",
+        });
+      }
     }
   }, [
     initialPages,
@@ -200,8 +228,10 @@ export function MihonReaderContainer() {
     sourceId,
     mangaTitle,
     mangaUrl,
+    mangaCover,
     init,
     preloadChapter,
+    addHistoryEntry,
   ]);
 
   // Update viewerChapters when chapters list loads (after initial page load)
@@ -370,6 +400,33 @@ export function MihonReaderContainer() {
   );
 
   /**
+   * Called when user reaches 95% of chapter (mark as read).
+   */
+  const handleMarkChapterRead = useCallback(
+    (chapter: ReaderChapter, totalPages: number) => {
+      const chapterId = chapter.chapter.id;
+
+      // Avoid marking same chapter multiple times
+      if (markedAsReadRef.current.has(chapterId)) {
+        return;
+      }
+
+      markedAsReadRef.current.add(chapterId);
+
+      // Only mark as read if manga is in library (has mangaId)
+      if (mangaId) {
+        console.log(
+          "[MihonReaderContainer] Marking chapter as read:",
+          chapterId,
+          `(${totalPages} pages)`
+        );
+        markChapterRead(mangaId, chapterId, totalPages);
+      }
+    },
+    [mangaId, markChapterRead]
+  );
+
+  /**
    * Called when user seeks to a page via slider.
    */
   const handleSeekPage = useCallback((page: number) => {
@@ -423,6 +480,7 @@ export function MihonReaderContainer() {
         onPreloadNeeded={handlePreloadNeeded}
         onRetryChapter={handleRetryChapter}
         onGoToChapter={handleChapterChange}
+        onMarkChapterRead={handleMarkChapterRead}
       />
       <ReaderOverlay onSeekPage={handleSeekPage} />
     </View>

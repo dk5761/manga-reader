@@ -30,6 +30,7 @@ interface WebtoonViewerProps {
   onPreloadNeeded: (chapter: ReaderChapter) => void;
   onRetryChapter: (chapter: ReaderChapter) => void;
   onGoToChapter: (chapter: ReaderChapter) => void;
+  onMarkChapterRead?: (chapter: ReaderChapter, totalPages: number) => void;
 }
 
 /**
@@ -41,6 +42,7 @@ function WebtoonViewerComponent({
   onPreloadNeeded,
   onRetryChapter,
   onGoToChapter,
+  onMarkChapterRead,
 }: WebtoonViewerProps) {
   const listRef = useRef<any>(null);
 
@@ -65,8 +67,9 @@ function WebtoonViewerComponent({
     () => ({
       onChapterChange,
       onPreloadNeeded,
+      onMarkChapterRead,
     }),
-    [onChapterChange, onPreloadNeeded]
+    [onChapterChange, onPreloadNeeded, onMarkChapterRead]
   );
 
   const { handleViewableItemsChanged, handleScroll } = usePageTracking(
