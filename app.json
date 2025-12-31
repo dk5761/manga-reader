@@ -10,7 +10,7 @@
     "name": "manga-reader",
     "slug": "manga-reader",
     "android": {
-      "package": "com.drshnk.mangareader",
+      "package": "com.drshnk.manga-reader",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icons/adaptive-icon.png",
         "monochromeImage": "./assets/icons/adaptive-icon.png",
@@ -30,14 +30,14 @@
     },
     "extra": {
       "eas": {
-        "projectId": "20f97605-b540-423f-8b73-e990ee02f371"
+        "projectId": ""
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/20f97605-b540-423f-8b73-e990ee02f371"
+      "url": ""
     },
     "plugins": [
       [
