@@ -165,6 +165,11 @@ export function useUpdateLibraryChapters() {
 
   return useCallback(
     (id: string, newChapters: Chapter[]) => {
+      console.log("[DEBUG useUpdateLibraryChapters] CALLED with:", {
+        mangaId: id,
+        newChapterCount: newChapters.length,
+      });
+
       realm.write(() => {
         const manga = realm.objectForPrimaryKey(MangaSchema, id);
         if (!manga) return;

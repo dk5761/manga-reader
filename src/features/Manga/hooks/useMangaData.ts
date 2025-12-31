@@ -6,7 +6,10 @@
 import { useEffect, useCallback, useState } from "react";
 import { useSession } from "@/shared/contexts/SessionContext";
 import { useMangaDetails, useChapterList } from "../api/manga.queries";
-import { useLibraryMangaById } from "@/features/Library/hooks";
+import {
+  useLibraryMangaById,
+  useUpdateLibraryChapters,
+} from "@/features/Library/hooks";
 import { getSource } from "@/sources";
 import type { MangaDetails, Chapter } from "@/sources";
 
@@ -110,6 +113,43 @@ export function useMangaData(params: MangaDataParams) {
     refetch: refetchChapters,
   } = useChapterList(sourceId, url, fetchEnabled);
 
+  // [DEBUG] Log when fresh chapters data arrives
+  useEffect(() => {
+    if (chapters) {
+      const localChapterCount = libraryManga?.chapters?.length ?? 0;
+      console.log("[DEBUG useMangaData] Fresh chapters received:", {
+        mangaTitle: manga?.title || libraryManga?.title || "Unknown",
+        freshChapterCount: chapters.length,
+        localChapterCount,
+        isInLibrary: hasLocalData,
+        libraryId,
+        diff: chapters.length - localChapterCount,
+      });
+    }
+  }, [chapters, libraryManga, manga, hasLocalData, libraryId]);
+
+  // Auto-sync: Persist fresh chapters to Realm when they arrive for library manga
+  const updateLibraryChapters = useUpdateLibraryChapters();
+
+  useEffect(() => {
+    // Only sync if:
+    // 1. We have fresh chapters from API
+    // 2. Manga is in library
+    // 3. There's actually new data to sync
+    if (chapters && hasLocalData && libraryManga) {
+      const localChapterCount = libraryManga.chapters?.length ?? 0;
+
+      if (chapters.length !== localChapterCount) {
+        console.log("[useMangaData] Auto-syncing chapters to Realm:", {
+          libraryId,
+          freshCount: chapters.length,
+          localCount: localChapterCount,
+        });
+        updateLibraryChapters(libraryId, chapters);
+      }
+    }
+  }, [chapters, hasLocalData, libraryManga, libraryId, updateLibraryChapters]);
+
   // Build display data: preloaded -> fresh -> local (priority order)
   const displayManga: DisplayManga | null = manga
     ? {
@@ -158,6 +198,20 @@ export function useMangaData(params: MangaDataParams) {
       date: ch.date,
     })) ||
     [];
+
+  // [DEBUG] Log display chapters source
+  useEffect(() => {
+    const source = chapters
+      ? "FRESH API"
+      : libraryManga?.chapters
+      ? "LOCAL REALM"
+      : "NONE";
+    console.log("[DEBUG useMangaData] Display chapters source:", {
+      source,
+      count: displayChapters.length,
+      isInLibrary: hasLocalData,
+    });
+  }, [displayChapters.length, chapters, libraryManga, hasLocalData]);
 
   // Loading states
   const isWaitingForSession = source?.needsCloudflareBypass && !sessionReady;
