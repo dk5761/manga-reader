@@ -256,3 +256,22 @@ export function getItemKey(item: AdapterItem): string {
     item.targetChapter?.chapter.id ?? "none"
   }`;
 }
+
+/**
+ * Format chapter title for display
+ */
+export function formatChapterTitle(
+  chapter: Chapter | null | undefined
+): string {
+  if (!chapter) return "Unknown Chapter";
+
+  const number = chapter.number;
+
+  // If we have a valid number, always show it
+  if (number && !isNaN(number)) {
+    return `Chapter ${number}`;
+  }
+
+  // Fallback to title only if number is invalid
+  return chapter.title?.trim() || "Unknown Chapter";
+}

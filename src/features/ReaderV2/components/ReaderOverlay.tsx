@@ -17,6 +17,7 @@ import { router } from "expo-router";
 import { useReaderStoreV2 } from "../store/useReaderStoreV2";
 import { ChapterNavigator } from "./ChapterNavigator";
 import type { Chapter } from "@/sources";
+import { formatChapterTitle } from "../types/reader.types";
 
 interface ReaderOverlayProps {
   chapter: Chapter | null;
@@ -59,7 +60,7 @@ export const ReaderOverlay = memo(function ReaderOverlay({
 
   if (!viewerChapters) return null;
 
-  const chapterTitle = chapter?.title ?? `Chapter ${chapter?.number ?? "?"}`;
+  const chapterTitle = formatChapterTitle(chapter);
 
   return (
     <>

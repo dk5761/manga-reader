@@ -7,6 +7,7 @@
 
 import { memo } from "react";
 import { View, Text, ActivityIndicator, Pressable } from "react-native";
+import { formatChapterTitle } from "../types/reader.types";
 import type { TransitionItem } from "../types/reader.types";
 
 interface ChapterTransitionProps {
@@ -22,7 +23,7 @@ export const ChapterTransition = memo(function ChapterTransition({
 
   const title = direction === "prev" ? "Previous Chapter" : "Next Chapter";
   const chapterName = targetChapter
-    ? targetChapter.chapter.title ?? `Chapter ${targetChapter.chapter.number}`
+    ? formatChapterTitle(targetChapter.chapter)
     : "No more chapters";
   const hasTarget = targetChapter !== null;
 
@@ -31,7 +32,7 @@ export const ChapterTransition = memo(function ChapterTransition({
   if (isLoaded) {
     return (
       <View className="w-full py-8 items-center justify-center">
-        <View className="w-24 h-[1px] bg-neutral-800 mb-2" />
+        <View className="w-24 h-px bg-neutral-800 mb-2" />
         <Text className="text-neutral-500 font-medium text-xs uppercase tracking-widest">
           {chapterName}
         </Text>
