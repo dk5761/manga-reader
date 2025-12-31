@@ -4,7 +4,7 @@
  */
 
 import { View, Text, ActivityIndicator } from "react-native";
-import FastImage from "react-native-fast-image";
+import { Image } from "expo-image";
 import type { Source } from "@/sources";
 
 type GenreChipProps = {
@@ -47,20 +47,20 @@ export function MangaHeader({
       {/* Cover Image */}
       <View className="w-[120px] aspect-2/3 rounded-lg bg-surface shadow-md overflow-hidden">
         {localCover ? (
-          <FastImage
+          <Image
             source={{ uri: localCover }}
             style={{ width: "100%", height: "100%" }}
-            resizeMode={FastImage.resizeMode.cover}
+            contentFit="cover"
           />
         ) : (
-          <FastImage
+          <Image
             source={{
               uri: cover,
               headers: headers || {},
-              priority: FastImage.priority.high,
             }}
             style={{ width: "100%", height: "100%" }}
-            resizeMode={FastImage.resizeMode.cover}
+            contentFit="cover"
+            priority="high"
           />
         )}
       </View>

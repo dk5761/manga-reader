@@ -1,7 +1,7 @@
-import FastImage from "react-native-fast-image";
+import { Image } from "expo-image";
 
 /**
- * Image cache management utilities for react-native-fast-image.
+ * Image cache management utilities for expo-image.
  * Provides functions to clear memory and disk cache.
  */
 
@@ -11,7 +11,7 @@ import FastImage from "react-native-fast-image";
  */
 export async function clearMemoryCache(): Promise<void> {
   try {
-    await FastImage.clearMemoryCache();
+    await Image.clearMemoryCache();
     console.log("[ImageCache] Memory cache cleared");
   } catch (error) {
     console.error("[ImageCache] Failed to clear memory cache:", error);
@@ -25,7 +25,7 @@ export async function clearMemoryCache(): Promise<void> {
  */
 export async function clearDiskCache(): Promise<void> {
   try {
-    await FastImage.clearDiskCache();
+    await Image.clearDiskCache();
     console.log("[ImageCache] Disk cache cleared");
   } catch (error) {
     console.error("[ImageCache] Failed to clear disk cache:", error);
@@ -39,10 +39,7 @@ export async function clearDiskCache(): Promise<void> {
  */
 export async function clearAllCache(): Promise<void> {
   try {
-    await Promise.all([
-      FastImage.clearMemoryCache(),
-      FastImage.clearDiskCache(),
-    ]);
+    await Promise.all([Image.clearMemoryCache(), Image.clearDiskCache()]);
     console.log("[ImageCache] All caches cleared");
   } catch (error) {
     console.error("[ImageCache] Failed to clear caches:", error);
@@ -54,25 +51,20 @@ export async function clearAllCache(): Promise<void> {
  * Preload images for better reading experience.
  * Images will be cached and ready when needed.
  *
- * @param uris - Array of image URIs or source objects with headers
+ * @param sources - Array of image URIs or source objects with headers
  */
 export function preloadImages(
   sources: Array<{
     uri: string;
     headers?: Record<string, string>;
-    priority?: "low" | "normal" | "high";
   }>
 ): void {
-  const fastImageSources = sources.map((source) => ({
-    uri: source.uri,
-    headers: source.headers,
-    priority:
-      source.priority === "high"
-        ? FastImage.priority.high
-        : source.priority === "low"
-        ? FastImage.priority.low
-        : FastImage.priority.normal,
-  }));
-
-  FastImage.preload(fastImageSources);
+  // expo-image's prefetch handles caching
+  for (const source of sources) {
+    Image.prefetch(source.uri, {
+      headers: source.headers,
+    }).catch((error) => {
+      console.warn("[ImageCache] Failed to prefetch image:", error);
+    });
+  }
 }

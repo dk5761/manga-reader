@@ -1,5 +1,5 @@
-import { ReaderScreen } from "@/features/Reader";
+import { ReaderScreenV2 } from "@/features/ReaderV2";
 
 export default function ReaderRoute() {
-  return <ReaderScreen />;
+  return <ReaderScreenV2 />;
 }

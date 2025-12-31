@@ -1,0 +1,322 @@
+/**
+ * ReaderScreenV2
+ *
+ * Main entry point for the ReaderV2 feature.
+ * Implements Mihon's reader architecture with:
+ * - Stage 1: Fast metadata load (chapter structure)
+ * - Stage 2: Lazy image loading via FlashList
+ * - Stage 3: Background preloading via usePreloaderV2
+ * - Stage 4: History persistence and chapter navigation
+ */
+
+import { useEffect, useCallback, useMemo } from "react";
+import {
+  View,
+  ActivityIndicator,
+  Text,
+  StatusBar,
+  Pressable,
+} from "react-native";
+import {
+  GestureHandlerRootView,
+  TapGestureHandler,
+  State,
+} from "react-native-gesture-handler";
+import { useLocalSearchParams, router } from "expo-router";
+import { useReaderStoreV2 } from "../store/useReaderStoreV2";
+import { WebtoonViewer } from "../components/WebtoonViewer";
+import { ReaderOverlay } from "../components/ReaderOverlay";
+import { useChapterLoaderV2 } from "../hooks/useChapterLoaderV2";
+import { usePreloaderV2 } from "../hooks/usePreloaderV2";
+import { useSaveProgressV2 } from "../hooks/useSaveProgressV2";
+import { useKeepAwakeV2 } from "../hooks/useKeepAwakeV2";
+import { useChapterList } from "@/features/Manga/api/manga.queries";
+import type { Chapter } from "@/sources";
+
+export function ReaderScreenV2() {
+  // Keep screen awake while reading
+  useKeepAwakeV2();
+
+  // Get navigation params (matching existing route structure)
+  const params = useLocalSearchParams();
+  const chapterId = params.chapterId as string | undefined;
+  const sourceId = params.sourceId as string | undefined;
+  const url = params.url as string | undefined; // Chapter URL
+  const mangaUrl = params.mangaUrl as string | undefined;
+  const mangaId = params.mangaId as string | undefined;
+  const mangaTitle = params.mangaTitle as string | undefined;
+  const mangaCover = params.mangaCover as string | undefined;
+  const chapterNumberParam = params.chapterNumber as string | undefined;
+  const chapterTitleParam = params.chapterTitle as string | undefined;
+
+  // Fetch chapters list (same as old reader)
+  const { data: chapters, isLoading: chaptersLoading } = useChapterList(
+    sourceId ?? "",
+    mangaUrl ?? ""
+  );
+
+  // Find current chapter from list or create fallback
+  const currentChapter = useMemo((): Chapter | null => {
+    if (chapters) {
+      const found = chapters.find(
+        (ch) => ch.url === url || ch.id === chapterId
+      );
+      if (found) return found;
+    }
+    // Fallback: create chapter from params
+    if (chapterId && url && chapterNumberParam) {
+      return {
+        id: chapterId,
+        mangaId: mangaId ?? "",
+        url: url,
+        number: parseFloat(chapterNumberParam),
+        title: chapterTitleParam,
+      };
+    }
+    return null;
+  }, [
+    chapters,
+    url,
+    chapterId,
+    mangaId,
+    chapterNumberParam,
+    chapterTitleParam,
+  ]);
+
+  // Find chapter index
+  const currentChapterIndex = useMemo(
+    () =>
+      chapters?.findIndex((ch) => ch.url === url || ch.id === chapterId) ?? -1,
+    [chapters, url, chapterId]
+  );
+
+  // Store state and actions
+  const initialize = useReaderStoreV2((s) => s.initialize);
+  const setCurrentChapterData = useReaderStoreV2(
+    (s) => s.setCurrentChapterData
+  );
+  const reset = useReaderStoreV2((s) => s.reset);
+  const viewerChapters = useReaderStoreV2((s) => s.viewerChapters);
+  const currentPage = useReaderStoreV2((s) => s.currentPage);
+  const toggleOverlay = useReaderStoreV2((s) => s.toggleOverlay);
+  const allChapters = useReaderStoreV2((s) => s.allChapters);
+  const storeChapterIndex = useReaderStoreV2((s) => s.currentChapterIndex);
+
+  // Stage 1: Load chapter pages (metadata only)
+  const {
+    data: loadedChapter,
+    isLoading: pagesLoading,
+    error,
+    refetch,
+  } = useChapterLoaderV2(sourceId ?? "", currentChapter, !!currentChapter);
+
+  // Stage 3: Preload upcoming pages
+  const pages = viewerChapters?.currChapter.pages ?? [];
+  const { clearPrefetchCache } = usePreloaderV2(pages, currentPage);
+
+  // Stage 4: Save reading progress
+  const progressData = useMemo(
+    () =>
+      currentChapter && mangaId && sourceId
+        ? {
+            mangaId,
+            mangaTitle: mangaTitle ?? "Unknown",
+            mangaCover,
+            chapter: currentChapter,
+            sourceId,
+          }
+        : null,
+    [currentChapter, mangaId, mangaTitle, mangaCover, sourceId]
+  );
+  useSaveProgressV2(progressData);
+
+  // Initialize store when chapters list is ready
+  useEffect(() => {
+    if (chapters && chapters.length > 0 && mangaId && sourceId && chapterId) {
+      initialize({
+        mangaId,
+        sourceId,
+        chapterId,
+        chapters,
+        initialPage: 0,
+      });
+    }
+  }, [chapters?.length, mangaId, sourceId, chapterId, initialize]);
+
+  // Update store when chapter data loads (Stage 1 complete)
+  // Only set after store is initialized (storeChapterIndex >= 0)
+  useEffect(() => {
+    if (loadedChapter) {
+      setCurrentChapterData(loadedChapter);
+    }
+  }, [loadedChapter, setCurrentChapterData]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      clearPrefetchCache();
+      reset();
+    };
+  }, [clearPrefetchCache, reset]);
+
+  // Handle back navigation
+  const handleBack = useCallback(() => {
+    router.back();
+  }, []);
+
+  // Chapter navigation handlers
+  const handlePrevChapter = useCallback(() => {
+    const idx =
+      storeChapterIndex >= 0 ? storeChapterIndex : currentChapterIndex;
+    if (idx >= allChapters.length - 1) return;
+    const prevChapter = allChapters[idx + 1];
+    if (!prevChapter) return;
+
+    router.replace({
+      pathname: "/reader/[chapterId]",
+      params: {
+        chapterId: prevChapter.id,
+        sourceId: sourceId ?? "",
+        url: prevChapter.url,
+        mangaUrl: mangaUrl ?? "",
+        mangaId: mangaId ?? "",
+        mangaTitle: mangaTitle ?? "",
+        mangaCover: mangaCover ?? "",
+        chapterNumber: prevChapter.number.toString(),
+        chapterTitle: prevChapter.title ?? "",
+      },
+    });
+  }, [
+    storeChapterIndex,
+    currentChapterIndex,
+    allChapters,
+    sourceId,
+    mangaUrl,
+    mangaId,
+    mangaTitle,
+    mangaCover,
+  ]);
+
+  const handleNextChapter = useCallback(() => {
+    const idx =
+      storeChapterIndex >= 0 ? storeChapterIndex : currentChapterIndex;
+    if (idx <= 0) return;
+    const nextChapter = allChapters[idx - 1];
+    if (!nextChapter) return;
+
+    router.replace({
+      pathname: "/reader/[chapterId]",
+      params: {
+        chapterId: nextChapter.id,
+        sourceId: sourceId ?? "",
+        url: nextChapter.url,
+        mangaUrl: mangaUrl ?? "",
+        mangaId: mangaId ?? "",
+        mangaTitle: mangaTitle ?? "",
+        mangaCover: mangaCover ?? "",
+        chapterNumber: nextChapter.number.toString(),
+        chapterTitle: nextChapter.title ?? "",
+      },
+    });
+  }, [
+    storeChapterIndex,
+    currentChapterIndex,
+    allChapters,
+    sourceId,
+    mangaUrl,
+    mangaId,
+    mangaTitle,
+    mangaCover,
+  ]);
+
+  // Determine loading state
+  const isLoading = chaptersLoading || pagesLoading;
+
+  // Missing required params
+  if (!chapterId || !sourceId || !url) {
+    return (
+      <View className="flex-1 items-center justify-center bg-black px-4">
+        <StatusBar hidden />
+        <Text className="text-red-500 text-lg mb-2">Missing Parameters</Text>
+        <Text className="text-white text-center mb-4">
+          Required: chapterId, sourceId, url
+        </Text>
+        <Pressable
+          onPress={handleBack}
+          className="bg-blue-600 px-6 py-3 rounded-lg"
+        >
+          <Text className="text-white font-medium">Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-black">
+        <StatusBar hidden />
+        <ActivityIndicator color="#3b82f6" size="large" />
+        <Text className="text-white mt-4">Loading chapter...</Text>
+      </View>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <View className="flex-1 items-center justify-center bg-black px-4">
+        <StatusBar hidden />
+        <Text className="text-red-500 text-lg mb-2">Failed to load</Text>
+        <Text className="text-white text-center mb-4">
+          {error instanceof Error ? error.message : "Unknown error"}
+        </Text>
+        <View className="flex-row gap-4">
+          <Pressable
+            onPress={handleBack}
+            className="bg-neutral-700 px-6 py-3 rounded-lg"
+          >
+            <Text className="text-white font-medium">Go Back</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => refetch()}
+            className="bg-blue-600 px-6 py-3 rounded-lg"
+          >
+            <Text className="text-white font-medium">Retry</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  // Not initialized yet
+  if (!viewerChapters) {
+    return (
+      <View className="flex-1 items-center justify-center bg-black">
+        <StatusBar hidden />
+        <ActivityIndicator color="#3b82f6" size="small" />
+        <Text className="text-neutral-500 mt-2">Initializing...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <GestureHandlerRootView className="flex-1 bg-black">
+      <StatusBar hidden />
+
+      {/* Main reader content */}
+      <TapGestureHandler onActivated={toggleOverlay}>
+        <View className="flex-1">
+          <WebtoonViewer />
+        </View>
+      </TapGestureHandler>
+
+      {/* Reader controls overlay */}
+      <ReaderOverlay
+        chapter={currentChapter}
+        onPrevChapter={handlePrevChapter}
+        onNextChapter={handleNextChapter}
+      />
+    </GestureHandlerRootView>
+  );
+}

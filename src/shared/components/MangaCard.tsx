@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { View, Text, Pressable } from "react-native";
-import FastImage from "react-native-fast-image";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 
 type MangaCardProps = {
@@ -45,20 +45,19 @@ function MangaCardComponent({
       <View className="relative w-full aspect-2/3 rounded-xl overflow-hidden bg-zinc-800">
         {/* Cover Image */}
         {localCoverUrl ? (
-          <FastImage
+          <Image
             source={{ uri: localCoverUrl }}
             style={{ width: "100%", height: "100%", borderRadius: 8 }}
-            resizeMode={FastImage.resizeMode.cover}
+            contentFit="cover"
           />
         ) : (
-          <FastImage
+          <Image
             source={{
               uri: coverUrl,
               headers: headers || {},
-              priority: FastImage.priority.normal,
             }}
             style={{ width: "100%", height: "100%", borderRadius: 8 }}
-            resizeMode={FastImage.resizeMode.cover}
+            contentFit="cover"
           />
         )}
 

@@ -1,6 +1,13 @@
 import { useState, useCallback, memo, useEffect, useRef } from "react";
-import { View, ActivityIndicator, StyleSheet, Dimensions } from "react-native";
-import FastImage, { FastImageProps } from "react-native-fast-image";
+import {
+  View,
+  ActivityIndicator,
+  StyleSheet,
+  Dimensions,
+  StyleProp,
+  ImageStyle,
+} from "react-native";
+import { Image, ImageContentFit } from "expo-image";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -15,19 +22,15 @@ const CDN_HOSTS = [
 type MangaImageProps = {
   uri: string;
   headers?: Record<string, string>;
-  style?: FastImageProps["style"];
+  style?: StyleProp<ImageStyle>;
   resizeMode?: "contain" | "cover" | "stretch" | "center";
   priority?: "low" | "normal" | "high";
   onLoad?: () => void;
   onError?: () => void;
-  onProgress?: (event: {
-    nativeEvent: { loaded: number; total: number };
-  }) => void;
 };
 
 /**
- * Unified image component using react-native-fast-image.
- * Replaces ProxiedImage and WebViewImage with native performance.
+ * Unified image component using expo-image.
  *
  * Features:
  * - Native SDWebImage (iOS) / Glide (Android)
@@ -44,7 +47,6 @@ function MangaImageComponent({
   priority = "high",
   onLoad,
   onError,
-  onProgress,
 }: MangaImageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -105,9 +107,9 @@ function MangaImageComponent({
   }, [uri]);
 
   const handleLoad = useCallback(
-    (event: any) => {
+    (event: { source: { width: number; height: number } }) => {
       // Get image dimensions from load event
-      const { width, height } = event.nativeEvent;
+      const { width, height } = event.source;
       if (width && height) {
         setAspectRatio(width / height);
       }
@@ -135,23 +137,15 @@ function MangaImageComponent({
     return <View style={[styles.placeholder, style]} />;
   }
 
-  // Map priority to FastImage priority enum
-  const fastImagePriority =
-    priority === "high"
-      ? FastImage.priority.high
-      : priority === "low"
-      ? FastImage.priority.low
-      : FastImage.priority.normal;
-
-  // Map resizeMode to FastImage resizeMode enum
-  const fastImageResizeMode =
+  // Map resizeMode to expo-image contentFit
+  const contentFit: ImageContentFit =
     resizeMode === "contain"
-      ? FastImage.resizeMode.contain
+      ? "contain"
       : resizeMode === "cover"
-      ? FastImage.resizeMode.cover
+      ? "cover"
       : resizeMode === "stretch"
-      ? FastImage.resizeMode.stretch
-      : FastImage.resizeMode.center;
+      ? "fill"
+      : "scale-down";
 
   // Use aspect ratio if available, otherwise use default minHeight
   const imageStyle = aspectRatio
@@ -161,18 +155,17 @@ function MangaImageComponent({
   return (
     <View style={[styles.container, style]}>
       {!error && (
-        <FastImage
+        <Image
           style={imageStyle}
           source={{
             uri: currentUri,
             headers: headers,
-            priority: fastImagePriority,
-            cache: FastImage.cacheControl.immutable,
           }}
-          resizeMode={fastImageResizeMode}
+          contentFit={contentFit}
+          priority={priority}
+          cachePolicy="disk"
           onLoad={handleLoad}
           onError={handleError}
-          onProgress={onProgress}
         />
       )}
 
